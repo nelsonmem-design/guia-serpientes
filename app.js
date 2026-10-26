@@ -178,7 +178,7 @@
   // Galería de la guía: la foto 1 es fotos/<id>.webp y las demás fotos/<id>-<n>.webp (e.nf fotos en total)
   const foto = (id, n = 1) => especies.get(id)?.f === 0 ? SIN_FOTO : n > 1 ? `fotos/${id}-${n}.webp` : `fotos/${id}.webp`;
   const fotosGuia = e => e.f === 0 ? [SIN_FOTO] : Array.from({ length: e.nf || 1 }, (_, k) => foto(e.id, k + 1));
-  const mini = id => especies.get(id)?.f === 0 ? SIN_FOTO : `fotos/min/${id}.webp`;
+  const mini = id => !id || especies.get(id)?.f === 0 ? SIN_FOTO : `fotos/min/${id}.webp`;   // sin id: categoría sin ninguna foto libre
   // Nombre principal: el común en español; si la especie no tiene, el científico
   const nom = e => e.es || e.sci;
   const sci = e => `<i>${esc(e.sci)}</i>`;
@@ -1491,7 +1491,7 @@
      las preguntas con `solo` se hacen solo para ese tipo, y las opciones con un tercer elemento solo para esos tipos. */
   const PREGUNTAS = [
     { id: 'tipo', texto: '¿Qué animal es?', valor: e => [secDe(e)],
-      ops: [['serpientes', 'Una serpiente'], ['lagartijas', 'Una lagartija, iguana o geco'], ['tortugas', 'Una tortuga'], ['cocodrilos', 'Un cocodrilo o un caimán'], ['ranas', 'Una rana o un sapo']]
+      ops: [['serpientes', 'Una serpiente'], ['lagartijas', 'Una lagartija, iguana o geco'], ['tortugas', 'Una tortuga'], ['cocodrilos', 'Un cocodrilo o un caimán'], ['ranas', 'Una rana o un sapo'], ['salamandras', 'Una salamandra'], ['cecilias', 'Una cecilia: sin patas, como una lombriz grande']]
         .filter(([s]) => secciones.has(s)) },
     { id: 'lug', texto: '¿Dónde estaba?', valor: e => e.q.lug,
       ops: [['a', 'En un árbol o arbusto'], ['s', 'En el suelo'], ['h', 'Bajo la hojarasca, piedras o la tierra'], ['w', 'En el agua o en el mar'],
@@ -1503,7 +1503,13 @@
     { id: 'kr', solo: 'ranas', texto: '¿Cómo es la rana o el sapo?', valor: e => [e.k],
       ops: [['sapos', 'Piel gruesa y con verrugas, como un sapo'], ['venenosas_r', 'Diminuta, en el suelo y de día: de colores vivos, o café con líneas blancas'],
         ['hoja', 'Verde, de patas largas y ojos grandes de color, en las hojas'], ['vidrio', 'Pequeña y verde, con el vientre transparente'],
+        ['arboricolas_r', 'Otra rana de árbol: patas largas y discos en las puntas de los dedos'],
+        ['lluvia', 'Rana de suelo del bosque, de dedos largos y delgados sin membranas'],
+        ['campanilla', 'Ranita diminuta que canta «dink» o «coquí» desde la vegetación'],
         ['charca', 'Otra: rana de charca o de suelo, o sapito redondo de boca pequeña']] },
+    { id: 'ks', solo: 'salamandras', texto: '¿Cómo es la salamandra?', valor: e => [e.k],
+      ops: [['bolitoglossa', 'De cuerpo normal, con manos y pies anchos'], ['musgo', 'Diminuta (2 a 4 cm), de manos y pies estrechos, en el musgo'],
+        ['lombriz', 'Muy alargada, como una lombriz, de patas diminutas']] },
     { id: 'fos', solo: 'serpientes', texto: '¿Tiene la cabeza ancha y triangular, con un hoyito (foseta) entre el ojo y la nariz?',
       ayuda: 'Es la marca de las víboras. Mírela solo de lejos o en una foto.', valor: e => [e.k === 'viboras' ? 'si' : 'no'],
       ops: [['si', 'Sí'], ['no', 'No']] },
@@ -1551,7 +1557,7 @@
 
   function sinDatos(e) {
     return PREGUNTAS.filter(pr => pasos[pr.id] && pasos[pr.id] !== 'nose' && coincide(e, pr, pasos[pr.id]) === null)
-      .map(pr => ({ kr: 'tipo de rana', pu: 'pupila', es: 'escamas', tam: 'tamaño', reg: 'región', alt: 'altura', lug: 'lugar', pat: 'dibujo', col: 'color' }[pr.id] || pr.id));
+      .map(pr => ({ kr: 'tipo de rana', ks: 'tipo de salamandra', pu: 'pupila', es: 'escamas', tam: 'tamaño', reg: 'región', alt: 'altura', lug: 'lugar', pat: 'dibujo', col: 'color' }[pr.id] || pr.id));
   }
 
   function vistaPasos() {
