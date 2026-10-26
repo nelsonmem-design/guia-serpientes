@@ -492,6 +492,7 @@
     m: ['moderado', 'Veneno moderado'],
     l: ['leve', 'Veneno leve'],
     g: ['peligro', 'Peligroso: puede atacar'],   // cocodrilo grande (Muñoz Chacón y Johnston 2013)
+    t: ['moderado', 'Piel tóxica: no tocar'],     // ranas venenosas y sapo común (misma guía)
   };
 
   function marcas(e) {
@@ -558,8 +559,8 @@
           ${G.clases.map(cl => {
             const propias = G.secciones.filter(s => s.clase === cl.id);
             return `<h2 class="seccion">${esc(cl.nombre)}</h2>${propias.length
-              ? `<div class="categorias">${propias.map(tarjetaSeccion).join('')}</div>`
-              : `<p class="clase-pendiente">${esc(cl.pendiente || '')}</p>`}`;
+              ? `<div class="categorias">${propias.map(tarjetaSeccion).join('')}</div>` : ''}${cl.pendiente
+              ? `<p class="clase-pendiente">${esc(cl.pendiente)}</p>` : ''}`;
           }).join('')}
           <button class="aprender-inicio" data-ir="#/aprender">${ICONO.aprender}
             <span class="fila-texto"><strong>Aprender</strong><span>${nPend ? `${nPend} especies para repasar hoy` : 'Practica con fotos y repasa cada día'}</span></span>${ICONO.der}</button>
@@ -1448,10 +1449,11 @@
         <p class="nota">Las fotos de esta guía provienen de Wikimedia Commons y de iNaturalist, solo con licencias libres (CC0, dominio público, CC BY y CC BY-SA), y se usan según la licencia que indica su autor. Los números indican el orden de las fotos en la ficha.
         Los textos son de redacción propia. Serpientes: a partir de Alejandro Solórzano, <i>Serpientes de Costa Rica: distribución, taxonomía e
         historia natural</i>, 2.ª edición, Editorial Costa Rica, 2022 (con Mahmood Sasa Marín y José María Gutiérrez como autores invitados).
-        Lagartijas, tortugas y cocodrilos: a partir de Federico Muñoz Chacón y Richard Dennis Johnston, <i>Anfibios y reptiles de Costa Rica:
+        Lagartijas, tortugas, cocodrilos, ranas y sapos: a partir de Federico Muñoz Chacón y Richard Dennis Johnston, <i>Anfibios y reptiles de Costa Rica:
         guía de bolsillo en inglés y español</i>, Zona Tropical y Cornell University Press, 2013; las pocas especies que esa guía no trata se
         resumen de The Reptile Database.
-        La lista de especies y los nombres científicos se revisaron con The Reptile Database (Uetz y colaboradores, reptile-database.org).
+        La lista de especies y los nombres científicos se revisaron con The Reptile Database (Uetz y colaboradores, reptile-database.org)
+        en los reptiles, y con el Catalogue of Life (que toma los anfibios de Amphibian Species of the World, de D. R. Frost) en los anfibios.
         Los mapas de la ficha son un dibujo propio: «Libro» resume las zonas y alturas que da el libro de serpientes para cada especie;
         «Registros GBIF» muestra dónde hay registros con coordenadas publicados en GBIF.org (colecciones de museos, iNaturalist y otras fuentes).
         Contornos de Natural Earth y relieve de Mapzen/Tilezen (datos abiertos).
@@ -1489,7 +1491,7 @@
      las preguntas con `solo` se hacen solo para ese tipo, y las opciones con un tercer elemento solo para esos tipos. */
   const PREGUNTAS = [
     { id: 'tipo', texto: '¿Qué animal es?', valor: e => [secDe(e)],
-      ops: [['serpientes', 'Una serpiente'], ['lagartijas', 'Una lagartija, iguana o geco'], ['tortugas', 'Una tortuga'], ['cocodrilos', 'Un cocodrilo o un caimán']]
+      ops: [['serpientes', 'Una serpiente'], ['lagartijas', 'Una lagartija, iguana o geco'], ['tortugas', 'Una tortuga'], ['cocodrilos', 'Un cocodrilo o un caimán'], ['ranas', 'Una rana o un sapo']]
         .filter(([s]) => secciones.has(s)) },
     { id: 'lug', texto: '¿Dónde estaba?', valor: e => e.q.lug,
       ops: [['a', 'En un árbol o arbusto'], ['s', 'En el suelo'], ['h', 'Bajo la hojarasca, piedras o la tierra'], ['w', 'En el agua o en el mar'],
@@ -1498,6 +1500,10 @@
       ops: [['A', 'Anillos o bandas de colores alrededor del cuerpo'], ['M', 'Manchas, rombos o bandas oscuras'], ['R', 'Rayas a lo largo del cuerpo'], ['P', 'Puntitos o salpicado'], ['U', 'De un solo color, o casi']] },
     { id: 'col', texto: '¿Qué color tiene sobre todo?', valor: e => e.q.col,
       ops: [['v', 'Verde'], ['c', 'Café, gris o pardo'], ['n', 'Negra o muy oscura'], ['r', 'Roja, anaranjada o rosada'], ['a', 'Amarilla']] },
+    { id: 'kr', solo: 'ranas', texto: '¿Cómo es la rana o el sapo?', valor: e => [e.k],
+      ops: [['sapos', 'Piel gruesa y con verrugas, como un sapo'], ['venenosas_r', 'Diminuta, en el suelo y de día: de colores vivos, o café con líneas blancas'],
+        ['hoja', 'Verde, de patas largas y ojos grandes de color, en las hojas'], ['vidrio', 'Pequeña y verde, con el vientre transparente'],
+        ['charca', 'Otra: rana de charca o de suelo, o sapito redondo de boca pequeña']] },
     { id: 'fos', solo: 'serpientes', texto: '¿Tiene la cabeza ancha y triangular, con un hoyito (foseta) entre el ojo y la nariz?',
       ayuda: 'Es la marca de las víboras. Mírela solo de lejos o en una foto.', valor: e => [e.k === 'viboras' ? 'si' : 'no'],
       ops: [['si', 'Sí'], ['no', 'No']] },
@@ -1545,7 +1551,7 @@
 
   function sinDatos(e) {
     return PREGUNTAS.filter(pr => pasos[pr.id] && pasos[pr.id] !== 'nose' && coincide(e, pr, pasos[pr.id]) === null)
-      .map(pr => ({ pu: 'pupila', es: 'escamas', tam: 'tamaño', reg: 'región', alt: 'altura', lug: 'lugar', pat: 'dibujo', col: 'color' }[pr.id] || pr.id));
+      .map(pr => ({ kr: 'tipo de rana', pu: 'pupila', es: 'escamas', tam: 'tamaño', reg: 'región', alt: 'altura', lug: 'lugar', pat: 'dibujo', col: 'color' }[pr.id] || pr.id));
   }
 
   function vistaPasos() {
@@ -1571,7 +1577,7 @@
             return filaEspecie(e, true, sd.length ? `<span class="sin-dato">Sin dato de ${sd.join(', ')}</span>` : '');
           }).join('')}</ul>`
         : `<div class="botones centrar"><button class="btn sec" id="btn-ver">Ver las ${lista.length} posibles</button></div>`}
-      <p class="fuente">Rasgos tomados de las fichas (Solórzano, <i>Serpientes de Costa Rica</i>, 2022, y Muñoz Chacón y Johnston, <i>Anfibios y reptiles de Costa Rica</i>, 2013); en las especies que no son serpientes, la región y la altura salen de los registros de GBIF. Si una especie no tiene un dato, sigue en la lista. Observe siempre de lejos y no toque ninguna serpiente.</p>`;
+      <p class="fuente">Rasgos tomados de las fichas (Solórzano, <i>Serpientes de Costa Rica</i>, 2022, y Muñoz Chacón y Johnston, <i>Anfibios y reptiles de Costa Rica</i>, 2013); en las especies que no son serpientes, la región y la altura salen de los registros de GBIF. Si una especie no tiene un dato, sigue en la lista. Observe siempre de lejos y no toque ninguna serpiente ni rana venenosa.</p>`;
     $vista.querySelectorAll('.opcion').forEach(b => { b.onclick = () => { pasos[pr.id] = b.dataset.v; ver.pasos = false; render(); window.scrollTo(0, 0); }; });
     $vista.querySelectorAll('[data-quitar]').forEach(b => { b.onclick = () => { delete pasos[b.dataset.quitar]; render(); }; });
     const $r = document.getElementById('btn-reiniciar');
