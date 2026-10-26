@@ -1,7 +1,7 @@
 {
-  "name": "Serpientes de Costa Rica",
-  "short_name": "Serpientes de CR",
-  "description": "Guía de identificación de serpientes de Costa Rica, sin conexión.",
+  "name": "Anfibios y reptiles de Costa Rica",
+  "short_name": "Anfibios y reptiles",
+  "description": "Guía de identificación de anfibios y reptiles de Costa Rica, sin conexión.",
   "lang": "es",
   "start_url": "./index.html",
   "scope": "./",
@@ -9,8 +9,20 @@
   "background_color": "#f6f3ec",
   "theme_color": "#1f4d3a",
   "icons": [
-    { "src": "iconos/icono-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "iconos/icono-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "logo.svg", "sizes": "any", "type": "image/svg+xml" }
+    {
+      "src": "iconos/icono-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "iconos/icono-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
   ]
 }

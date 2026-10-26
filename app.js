@@ -1,5 +1,5 @@
-/* Guía de serpientes de Costa Rica – app sin conexión (misma lógica que la guía de aves).
-   Los datos vienen de datos/serpientes.js (window.GUIA), generado por herramientas/construir_app.py.
+/* Guía de anfibios y reptiles de Costa Rica (antes guía de serpientes) – app sin conexión (misma lógica que la guía
+   de aves). Los datos vienen de datos/serpientes.js (window.GUIA), generado por herramientas/construir_app.py.
    Las fotos personales se guardan en IndexedDB, aparte de los datos de la guía,
    para que una actualización de la app no las borre. */
 (() => {
@@ -11,6 +11,10 @@
   const gruposAlfa = [...G.grupos].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
   // Categorías del inicio (forma de vida); cada grupo y cada especie tiene la suya (g.cat, e.k)
   const categorias = new Map(G.categorias.map(c => [c.id, c]));
+  // Secciones del inicio (Serpientes, Lagartijas, Tortugas, Cocodrilos…), cada una dentro de una clase (Reptiles, Anfibios)
+  const secciones = new Map(G.secciones.map(s => [s.id, s]));
+  const secDe = e => categorias.get(e.k)?.sec;
+  const catsDe = sec => G.categorias.filter(c => c.sec === sec);
   const $vista = document.getElementById('vista');
   const $titulo = document.getElementById('titulo');
   const $subtitulo = document.getElementById('subtitulo');
@@ -178,6 +182,17 @@
   const nom = e => e.es || e.sci;
   const sci = e => `<i>${esc(e.sci)}</i>`;
   const paginas = p => !p ? '' : p[0] === p[1] ? `pág. ${p[0]}` : `págs. ${p[0]} a ${p[1]}`;
+  // Fuente de cada ficha (e.fu): Solórzano (2022) para las serpientes; para los demás reptiles, la guía de bolsillo de
+  // Muñoz Chacón y Johnston (2013) o, si la especie no está en ella, The Reptile Database
+  const FUENTES = {
+    sol: { cita: 'Solórzano, <i>Serpientes de Costa Rica</i> (2022)', nl: 'En el libro', mapa: 'Libro',
+      sinMapa: 'El libro no da una distribución en Costa Rica que se pueda dibujar para esta especie.' },
+    mcj: { cita: 'Muñoz Chacón y Johnston, <i>Anfibios y reptiles de Costa Rica</i> (2013)', nl: 'En la guía de bolsillo', mapa: 'Guía',
+      sinMapa: 'La guía de bolsillo no describe su distribución con detalle. Mira «Registros GBIF».' },
+    rdb: { cita: 'The Reptile Database (Uetz y colaboradores, reptile-database.org)', nl: 'También llamada', mapa: 'Guía',
+      sinMapa: 'Esta especie no está en la guía de bolsillo. Mira «Registros GBIF».' },
+  };
+  const fuente = e => FUENTES[e.fu] || FUENTES.sol;
 
   function aviso(texto) {
     const a = document.getElementById('aviso');
@@ -332,6 +347,7 @@
   // Ámbito de práctica: 'repaso' (pendientes de hoy), 'todas', 'c-<categoría>' o 'g-<grupo>'
   function especiesDe(ambito) {
     if (ambito === 'repaso') return G.especies.filter(e => pendiente(e.id)).map(e => e.id);
+    if (ambito.startsWith('s-')) return G.especies.filter(e => secDe(e) === ambito.slice(2)).map(e => e.id);
     if (ambito.startsWith('c-')) return G.especies.filter(e => e.k === ambito.slice(2)).map(e => e.id);
     if (ambito.startsWith('g-')) return grupos.get(ambito.slice(2))?.especies || [];
     return G.especies.map(e => e.id);
@@ -339,9 +355,10 @@
 
   function nombreAmbito(ambito) {
     if (ambito === 'repaso') return 'Repaso del día';
+    if (ambito.startsWith('s-')) return secciones.get(ambito.slice(2))?.nombre || '';
     if (ambito.startsWith('c-')) return categorias.get(ambito.slice(2))?.nombre || '';
     if (ambito.startsWith('g-')) return grupos.get(ambito.slice(2))?.nombre || '';
-    return 'Todas las serpientes';
+    return 'Todas las especies';
   }
 
   // Una ronda de 10: primero las que toca repasar, luego las nuevas (en el orden de la guía) y por último las menos sabidas
@@ -383,7 +400,11 @@
     const p = ruta.split('/');
     if (p[1] === 'especie' && (p[3] === 'foto' || p[3] === 'mapa')) return `#/especie/${p[2]}`;
     if (p[1] === 'especie' && especies.has(p[2])) return `#/grupo/${especies.get(p[2]).g}`;
-    if (p[1] === 'grupo' && grupos.get(p[2])?.cat) return `#/cat/${grupos.get(p[2]).cat}`;
+    if (p[1] === 'grupo' && grupos.get(p[2])?.cat) {
+      const c = categorias.get(grupos.get(p[2]).cat);
+      return catsDe(c.sec).length > 1 ? `#/cat/${c.id}` : `#/sec/${c.sec}`;
+    }
+    if (p[1] === 'cat' && categorias.has(p[2])) return `#/sec/${categorias.get(p[2]).sec}`;
     if (p[1] === 'comparar') return '#/aprender';
     if (p[1] === 'identificar' && p[3]) return '#/identificar/foto';
     if (p[1] === 'aprender' && p[2] === 'grupo' && grupos.get(p[3])?.cat) return `#/aprender/cat/${grupos.get(p[3]).cat}`;
@@ -432,7 +453,8 @@
     const ruta = (location.hash || '#/').slice(1);
     const p = ruta.split('/').map(decodeURIComponent);
     let lista = true;
-    if (p[1] === 'cat' && categorias.has(p[2])) vistaCategoria(categorias.get(p[2]));
+    if (p[1] === 'sec' && secciones.has(p[2])) vistaSeccion(secciones.get(p[2]));
+    else if (p[1] === 'cat' && categorias.has(p[2])) vistaCategoria(categorias.get(p[2]));
     else if (p[1] === 'grupo' && grupos.has(p[2])) vistaGrupo(grupos.get(p[2]));
     else if (p[1] === 'especie' && especies.has(p[2])) {
       lista = false;
@@ -468,6 +490,7 @@
     v: ['peligro', 'Venenosa: peligrosa'],
     m: ['moderado', 'Veneno moderado'],
     l: ['leve', 'Veneno leve'],
+    g: ['peligro', 'Peligroso: puede atacar'],   // cocodrilo grande (Muñoz Chacón y Johnston 2013)
   };
 
   function marcas(e) {
@@ -512,16 +535,14 @@
 
   /* ---------- vistas ---------- */
   function vistaInicio(consulta) {
-    cabecera('Serpientes de Costa Rica', `Guía de identificación · ${G.especies.length} especies`, true);
+    cabecera('Anfibios y reptiles de CR', `Guía de identificación · ${G.especies.length} especies`, true);
     const nVen = G.especies.filter(e => e.p === 'v').length;
-    const nCoral = G.especies.filter(e => e.pc).length;
     $vista.innerHTML = `
       <div class="buscador">${ICONO.buscar}
         <input id="q" type="search" placeholder="Buscar por nombre común o científico" autocomplete="off" value="${esc(consulta)}">
       </div>
       <div class="chips">
-        <button class="chip" data-ir="#/filtro/venenosas">Venenosas<b>${nVen}</b></button>
-        <button class="chip" data-ir="#/filtro/coral">Parecen coral<b>${nCoral}</b></button>
+        <button class="chip" data-ir="#/filtro/venenosas">Serpientes venenosas<b>${nVen}</b></button>
         <button class="chip" data-ir="#/filtro/mias">Mis fotos<b>${misFotos.size}</b></button>
       </div>
       <div id="resultados"></div>`;
@@ -531,16 +552,14 @@
       const q = normal($q.value.trim());
       if (!q) {
         const nPend = G.especies.filter(e => pendiente(e.id)).length;
-        $res.innerHTML = `<h2 class="seccion">¿Qué serpiente vi?</h2>
-          <div class="identificar-inicio">
-            <button class="btn" data-ir="#/identificar/pasos">${ICONO.pasos}Paso a paso</button>
-            <button class="btn sec" data-ir="#/identificar/foto">${ICONO.camara.replace('icono-camara', '')}Por foto</button>
-          </div>
-          <h2 class="seccion">¿Qué tipo de serpiente es?</h2><div class="categorias">${G.categorias.map(c => `
-          <button class="categoria" data-ir="#/cat/${c.id}">
-            <img src="${mini(c.foto)}" alt="" loading="lazy">
-            <span class="cat-texto"><strong>${esc(c.nombre)}</strong><span>${c.n} especies</span></span>
-          </button>`).join('')}</div>
+        $res.innerHTML = `<h2 class="seccion">¿Qué animal vi?</h2>
+          ${botonesIdentificar('')}
+          ${G.clases.map(cl => {
+            const propias = G.secciones.filter(s => s.clase === cl.id);
+            return `<h2 class="seccion">${esc(cl.nombre)}</h2>${propias.length
+              ? `<div class="categorias">${propias.map(tarjetaSeccion).join('')}</div>`
+              : `<p class="clase-pendiente">${esc(cl.pendiente || '')}</p>`}`;
+          }).join('')}
           <button class="aprender-inicio" data-ir="#/aprender">${ICONO.aprender}
             <span class="fila-texto"><strong>Aprender</strong><span>${nPend ? `${nPend} especies para repasar hoy` : 'Practica con fotos y repasa cada día'}</span></span>${ICONO.der}</button>
           <button class="mordedura-inicio" data-ir="#/mordedura">${ICONO.alerta}
@@ -553,7 +572,7 @@
             <li><button class="fila" data-ir="#/contacto">${ICONO.correo}<span class="fila-texto"><strong>Contacto</strong><span>Sugerencias para la guía o ideas de aplicaciones</span></span></button></li>
             ${pedirInstalacion ? `<li><button class="fila" id="btn-instalar">${ICONO.instalar}<span class="fila-texto"><strong>Instalar en esta computadora</strong><span>Como programa, con su ícono; funciona sin internet y se actualiza sola</span></span></button></li>` : ''}
           </ul>
-          <button class="fab" data-ir="#/identificar/pasos" aria-label="¿Qué serpiente vi? Identificar paso a paso">${ICONO.pasos}</button>`;
+          <button class="fab" data-pasos="" aria-label="¿Qué animal vi? Identificar paso a paso">${ICONO.pasos}</button>`;
       } else {
         const porNombre = [], porRasgo = [];
         for (const e of G.especies) {
@@ -566,6 +585,7 @@
             (porRasgo.length ? `<h2 class="seccion">En las características (${porRasgo.length})</h2><ul class="lista">${porRasgo.map(e => filaEspecie(e, true)).join('')}</ul>` : '');
       }
       activarEnlaces($res);
+      activarPasos($res);
       $res.querySelectorAll('.tema-opciones button').forEach(b => {
         b.onclick = () => {
           ponerTema(b.dataset.tema);
@@ -590,6 +610,67 @@
     pintar();
     activarEnlaces();
     if (enfocarBusqueda) { enfocarBusqueda = false; window.scrollTo(0, 0); $q.focus(); }
+  }
+
+  // Tarjeta de una sección en el inicio (foto de una especie, nombre y número de especies)
+  function tarjetaSeccion(s) {
+    return `<button class="categoria" data-ir="#/sec/${s.id}">
+      <img src="${mini(s.foto)}" alt="" loading="lazy">
+      <span class="cat-texto"><strong>${esc(s.nombre)}</strong><span>${s.n} especies</span></span>
+    </button>`;
+  }
+
+  // «Paso a paso» y «Por foto»; desde una sección, el paso a paso empieza ya con el tipo de animal respondido
+  function botonesIdentificar(sec) {
+    return `<div class="identificar-inicio">
+      <button class="btn" data-pasos="${sec}">${ICONO.pasos}Paso a paso</button>
+      <button class="btn sec" data-ir="#/identificar/foto">${ICONO.camara.replace('icono-camara', '')}Por foto</button>
+    </div>`;
+  }
+  function activarPasos(raiz = $vista) {
+    raiz.querySelectorAll('[data-pasos]').forEach(b => {
+      b.onclick = () => {
+        for (const k in pasos) delete pasos[k];
+        if (b.dataset.pasos) pasos.tipo = b.dataset.pasos;
+        ir('#/identificar/pasos');
+      };
+    });
+  }
+
+  /* Sección (Serpientes, Lagartijas, Tortugas, Cocodrilos): sus categorías. En Serpientes está todo lo de la guía de
+     serpientes: filtros Venenosas y Parecen coral, ¿Qué serpiente vi?, las 9 categorías y Ante una mordedura. */
+  function vistaSeccion(s) {
+    cabecera(s.nombre, `${s.n} especies`);
+    const cats = catsDe(s.id);
+    const cuadros = `<div class="categorias">${cats.map(c => `
+          <button class="categoria" data-ir="#/cat/${c.id}">
+            <img src="${mini(c.foto)}" alt="" loading="lazy">
+            <span class="cat-texto"><strong>${esc(c.nombre)}</strong><span>${c.n} especies</span></span>
+          </button>`).join('')}</div>`;
+    if (s.id === 'serpientes') {
+      const nVen = G.especies.filter(e => e.p === 'v').length;
+      const nCoral = G.especies.filter(e => e.pc).length;
+      $vista.innerHTML = `
+        <div class="chips">
+          <button class="chip" data-ir="#/filtro/venenosas">Venenosas<b>${nVen}</b></button>
+          <button class="chip" data-ir="#/filtro/coral">Parecen coral<b>${nCoral}</b></button>
+        </div>
+        <h2 class="seccion">¿Qué serpiente vi?</h2>
+        ${botonesIdentificar('serpientes')}
+        <h2 class="seccion">¿Qué tipo de serpiente es?</h2>${cuadros}
+        <button class="mordedura-inicio" data-ir="#/mordedura">${ICONO.alerta}
+          <span class="fila-texto"><strong>Ante una mordedura</strong><span>Qué hacer y qué no hacer</span></span>${ICONO.der}</button>`;
+    } else {
+      // Con una sola categoría se muestran directamente sus grupos
+      $vista.innerHTML = `
+        <p class="nota">${esc(s.detalle)}.</p>
+        <h2 class="seccion">${esc(s.pregunta || '¿Qué animal vi?')}</h2>
+        ${botonesIdentificar(s.id)}
+        ${cats.length > 1 ? `<h2 class="seccion">Tipos</h2>${cuadros}`
+          : `<h2 class="seccion">Grupos</h2><ul class="lista">${gruposAlfa.filter(g => g.cat === cats[0]?.id).map(filaGrupo).join('')}</ul>`}`;
+    }
+    activarEnlaces();
+    activarPasos();
   }
 
   function vistaCategoria(c) {
@@ -672,7 +753,8 @@
   }
 
   // Tarjeta cerrada "Más sobre la especie": tamaño, alimentación, reproducción y defensa (Solórzano 2022)
-  function complementoHTML(h, t) {
+  function complementoHTML(e) {
+    const { h, t } = e;
     if (!h?.length && !t) return '';
     return `<details class="sobre mas-id">
       <summary>
@@ -680,7 +762,7 @@
         <span class="sobre-mas"><span class="abrir">Mostrar</span><span class="cerrar">Ocultar</span>${ICONO.der}</span>
       </summary>
       ${h?.length ? `<ul>${h.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
-      <p class="fuente">Solórzano, <i>Serpientes de Costa Rica</i> (2022)</p>
+      <p class="fuente">${fuente(e).cita}</p>
     </details>`;
   }
 
@@ -828,7 +910,7 @@
     if (!MAPA) return '';
     const inicial = e.mp || !e.gb ? 'libro' : 'gbif';
     return `<div class="mapa" id="mapa">
-      <div class="mapa-modo" role="group" aria-label="Fuente del mapa">${[['libro', 'Libro'], ['gbif', 'Registros GBIF']].map(([m, t]) =>
+      <div class="mapa-modo" role="group" aria-label="Fuente del mapa">${[['libro', fuente(e).mapa], ['gbif', 'Registros GBIF']].map(([m, t]) =>
         `<button data-modo="${m}" aria-pressed="${m === inicial}">${t}</button>`).join('')}</div>
       <canvas id="mapa-lienzo" role="img" aria-label="Mapa de Costa Rica con la distribución de la especie"></canvas>
       <div class="mapa-leyenda" id="mapa-leyenda"></div>
@@ -838,10 +920,10 @@
   function leyendaMapa(e, modo) {
     if (!hayMapa(e, modo)) {
       const texto = modo === 'libro'
-        ? (e.mpn || 'El libro no da una distribución en Costa Rica que se pueda dibujar para esta especie.')
+        ? (e.mpn || fuente(e).sinMapa)
         : (e.gbn || 'No hay registros con coordenadas de esta especie en Costa Rica publicados en GBIF.');
-      const fuente = modo === 'libro' ? 'Solórzano, <i>Serpientes de Costa Rica</i> (2022)' : 'GBIF.org';
-      return `<p class="sin-mapa">${esc(texto)}</p><p class="fuente">${fuente}.</p>`;
+      const cita = modo === 'libro' ? fuente(e).cita : 'GBIF.org';
+      return `<p class="sin-mapa">${esc(texto)}</p><p class="fuente">${cita}.</p>`;
     }
     if (modo === 'gbif') {
       const fecha = MAPA.gbif.fecha ? MAPA.gbif.fecha.split('-').reverse().join('/') : '';
@@ -849,8 +931,8 @@
         ${e.gbn ? `<p class="sin-mapa">${esc(e.gbn)}</p>` : ''}
         <p class="fuente">${e.gb[1].toLocaleString('es-CR')} registros en Costa Rica (museos, iNaturalist y otras colecciones), vía GBIF.org. Consultado el ${fecha}. ● San José</p>`;
     }
-    return `<p><i class="muestra" style="background:rgb(${COLOR_LIBRO})"></i>Zona donde se espera, según el libro</p>
-      <p class="fuente">Zonas y alturas según Solórzano, <i>Serpientes de Costa Rica</i> (2022). Dibujo propio, aproximado. ● San José</p>`;
+    return `<p><i class="muestra" style="background:rgb(${COLOR_LIBRO})"></i>Zona donde se espera, según ${e.fu ? 'la guía' : 'el libro'}</p>
+      <p class="fuente">Zonas y alturas según ${fuente(e).cita}. Dibujo propio, aproximado. ● San José</p>`;
   }
 
   function activarMapa(e) {
@@ -904,14 +986,14 @@
         <button class="lupa" id="btn-lupa" aria-label="Ampliar foto">${ICONO.lupa}</button>
       </div>
       <div class="ficha-nombres">
-        <h2>${esc(nom(e))}</h2>${e.es ? `<p>${sci(e)}</p>` : ''}${e.o ? `<p class="otros">También: ${esc(e.o)}</p>` : ''}${e.nl ? `<p class="otros">En el libro: <i>${esc(e.nl)}</i></p>` : ''}
+        <h2>${esc(nom(e))}</h2>${e.es ? `<p>${sci(e)}</p>` : ''}${e.o ? `<p class="otros">También: ${esc(e.o)}</p>` : ''}${e.nl ? `<p class="otros">${fuente(e).nl}: <i>${esc(e.nl)}</i></p>` : ''}
         ${m ? `<div class="marcas" style="margin-top:8px">${m}</div>` : ''}
       </div>
       ${e.f === 0 ? '<p class="nota">No se encontró una foto con licencia libre de esta especie. Puedes poner la tuya en «Mis fotos».</p>' : ''}
       <div class="rasgos">${e.r.map((t, i) => t ? rasgoHTML(titulos[i] || `Característica ${i + 1}`, t) : '').join('')}</div>
       ${estatusHTML(e.z, mapaHTML(e))}
-      ${complementoHTML(e.h, e.t)}
-      <p class="dato-pag">Solórzano, <i>Serpientes de Costa Rica</i> (2022)${e.pg ? `, ${paginas(e.pg)}` : ''}</p>
+      ${complementoHTML(e)}
+      <p class="dato-pag">${fuente(e).cita}${e.pg ? `, ${paginas(e.pg)}` : ''}</p>
 
       <section class="mis-fotos">
         <h3>Mis fotos${propias.length ? ` (${propias.length})` : ''}</h3>
@@ -1135,12 +1217,14 @@
 
       <h2 class="seccion">Practicar y ver tu progreso</h2>
       <p class="ayuda">Elige una categoría y después un grupo. Ahí ves cómo vas con cada especie.</p>
-      <ul class="lista">${G.categorias.map(filaCategoriaAprender).join('')}</ul>
+      ${G.secciones.map(s => `<h3 class="sub-seccion">${esc(s.nombre)}</h3>
+        <ul class="lista">${catsDe(s.id).map(filaCategoriaAprender).join('')}</ul>`).join('')}
 
       <h2 class="seccion">¿A qué grupo pertenece?</h2>
       <p class="ayuda">Antes de aprender cada especie, aprende a reconocer el grupo por su forma y su comportamiento: así sabrás dónde buscarla en la guía.</p>
       <div class="chips envolver">
-        <button class="chip" data-ir="#/practica/grupo/todas">Todas las serpientes</button>
+        <button class="chip" data-ir="#/practica/grupo/todas">Todas las especies</button>
+        ${G.secciones.map(s => `<button class="chip" data-ir="#/practica/grupo/s-${s.id}">${esc(s.nombre)}</button>`).join('')}
         ${G.categorias.map(c => `<button class="chip" data-ir="#/practica/grupo/c-${c.id}">${esc(c.nombre)}</button>`).join('')}
       </div>
 
@@ -1245,7 +1329,7 @@
 
     $vista.innerHTML = `
       <div class="avance-ronda"><span>Pregunta ${r.i + 1} de ${r.cola.length}</span><span>${r.aciertos} ${r.aciertos === 1 ? 'acierto' : 'aciertos'}</span></div>
-      <div class="ficha-foto"><img src="${q.foto || (q.foto = foto(id, 1 + Math.floor(Math.random() * (e.nf || 1))))}" alt="Foto de la serpiente que hay que reconocer"></div>
+      <div class="ficha-foto"><img src="${q.foto || (q.foto = foto(id, 1 + Math.floor(Math.random() * (e.nf || 1))))}" alt="Foto del animal que hay que reconocer"></div>
       <div class="opciones">${q.ops.map((o, k) => `<button class="opcion" data-k="${k}">${etiqueta(o)}</button>`).join('')}</div>
       <div id="respuesta"></div>`;
 
@@ -1347,10 +1431,13 @@
     $vista.innerHTML = `
       <div class="creditos">
         <p class="nota">Las fotos de esta guía provienen de Wikimedia Commons y de iNaturalist, solo con licencias libres (CC0, dominio público, CC BY y CC BY-SA), y se usan según la licencia que indica su autor. Los números indican el orden de las fotos en la ficha.
-        Los textos son de redacción propia, a partir de Alejandro Solórzano, <i>Serpientes de Costa Rica: distribución, taxonomía e
+        Los textos son de redacción propia. Serpientes: a partir de Alejandro Solórzano, <i>Serpientes de Costa Rica: distribución, taxonomía e
         historia natural</i>, 2.ª edición, Editorial Costa Rica, 2022 (con Mahmood Sasa Marín y José María Gutiérrez como autores invitados).
+        Lagartijas, tortugas y cocodrilos: a partir de Federico Muñoz Chacón y Richard Dennis Johnston, <i>Anfibios y reptiles de Costa Rica:
+        guía de bolsillo en inglés y español</i>, Zona Tropical y Cornell University Press, 2013; las pocas especies que esa guía no trata se
+        resumen de The Reptile Database.
         La lista de especies y los nombres científicos se revisaron con The Reptile Database (Uetz y colaboradores, reptile-database.org).
-        Los mapas de la ficha son un dibujo propio: «Libro» resume las zonas y alturas que da ese libro para cada especie;
+        Los mapas de la ficha son un dibujo propio: «Libro» resume las zonas y alturas que da el libro de serpientes para cada especie;
         «Registros GBIF» muestra dónde hay registros con coordenadas publicados en GBIF.org (colecciones de museos, iNaturalist y otras fuentes).
         Contornos de Natural Earth y relieve de Mapzen/Tilezen (datos abiertos).
         Versión de los datos: ${esc(G.version)} (${esc(G.fecha)}).</p>
@@ -1382,31 +1469,39 @@
 
   /* ---------- Identificar: paso a paso y por foto ----------
      Rasgos de cada especie en e.q (construir_app.py): lug, pat, col (rasgos_identificacion.json), pu y es (del libro,
-     rasgos_libro.json), tam (cm, de la ficha), reg y alt (del mapa «Libro»). Lo que falta es «sin dato»: la especie no
-     se descarta por esa pregunta. */
+     rasgos_libro.json), tam (cm, de la ficha), reg y alt (del mapa «Libro» o, en los demás reptiles, de los registros de
+     GBIF). Lo que falta es «sin dato»: la especie no se descarta por esa pregunta. La primera pregunta es qué animal es;
+     las preguntas con `solo` se hacen solo para ese tipo, y las opciones con un tercer elemento solo para esos tipos. */
   const PREGUNTAS = [
+    { id: 'tipo', texto: '¿Qué animal es?', valor: e => [secDe(e)],
+      ops: [['serpientes', 'Una serpiente'], ['lagartijas', 'Una lagartija, iguana o geco'], ['tortugas', 'Una tortuga'], ['cocodrilos', 'Un cocodrilo o un caimán']]
+        .filter(([s]) => secciones.has(s)) },
     { id: 'lug', texto: '¿Dónde estaba?', valor: e => e.q.lug,
-      ops: [['a', 'En un árbol o arbusto'], ['s', 'En el suelo'], ['h', 'Bajo la hojarasca, piedras o la tierra'], ['w', 'En el agua o en el mar']] },
+      ops: [['a', 'En un árbol o arbusto'], ['s', 'En el suelo'], ['h', 'Bajo la hojarasca, piedras o la tierra'], ['w', 'En el agua o en el mar'],
+        ['c', 'En una casa, pared o construcción', ['lagartijas']]] },
     { id: 'pat', texto: '¿Qué dibujo tiene el cuerpo?', valor: e => e.q.pat,
       ops: [['A', 'Anillos o bandas de colores alrededor del cuerpo'], ['M', 'Manchas, rombos o bandas oscuras'], ['R', 'Rayas a lo largo del cuerpo'], ['P', 'Puntitos o salpicado'], ['U', 'De un solo color, o casi']] },
     { id: 'col', texto: '¿Qué color tiene sobre todo?', valor: e => e.q.col,
       ops: [['v', 'Verde'], ['c', 'Café, gris o pardo'], ['n', 'Negra o muy oscura'], ['r', 'Roja, anaranjada o rosada'], ['a', 'Amarilla']] },
-    { id: 'fos', texto: '¿Tiene la cabeza ancha y triangular, con un hoyito (foseta) entre el ojo y la nariz?',
+    { id: 'fos', solo: 'serpientes', texto: '¿Tiene la cabeza ancha y triangular, con un hoyito (foseta) entre el ojo y la nariz?',
       ayuda: 'Es la marca de las víboras. Mírela solo de lejos o en una foto.', valor: e => [e.k === 'viboras' ? 'si' : 'no'],
       ops: [['si', 'Sí'], ['no', 'No']] },
-    { id: 'pu', texto: '¿Cómo es la pupila del ojo?', valor: e => e.q.pu ? [e.q.pu] : null,
+    { id: 'pu', solo: 'serpientes', texto: '¿Cómo es la pupila del ojo?', valor: e => e.q.pu ? [e.q.pu] : null,
       ops: [['vertical', 'Vertical, como la de un gato'], ['redonda', 'Redonda'], ['oculta', 'No se le ven los ojos (son diminutos)']] },
-    { id: 'es', texto: '¿Las escamas del lomo son ásperas, con una crestita (quilla) en el centro?', valor: e => e.q.es ? (e.q.es === 'ambas' ? ['quilla', 'lisas'] : [e.q.es]) : null,
+    { id: 'es', solo: 'serpientes', texto: '¿Las escamas del lomo son ásperas, con una crestita (quilla) en el centro?', valor: e => e.q.es ? (e.q.es === 'ambas' ? ['quilla', 'lisas'] : [e.q.es]) : null,
       ops: [['quilla', 'Sí, ásperas, con quilla'], ['lisas', 'No, lisas y brillantes']] },
-    { id: 'tam', texto: '¿Qué tan larga era, más o menos?', ayuda: 'Una serpiente pequeña puede ser una cría de una especie grande.',
+    { id: 'tam', solo: 'serpientes', texto: '¿Qué tan larga era, más o menos?', ayuda: 'Una serpiente pequeña puede ser una cría de una especie grande.',
       coincide: (e, v) => e.q.tam == null ? null : v === 'p' ? true : v === 'm' ? e.q.tam >= 50 : e.q.tam >= 120,
       ops: [['p', 'Menos de 50 cm'], ['m', 'De 50 cm a 1,20 m'], ['g', 'Más de 1,20 m']] },
     { id: 'reg', texto: '¿En qué parte del país la vio?', valor: e => e.q.reg || null,
-      ops: [['caribe', 'Caribe o Zona Norte'], ['norte', 'Guanacaste y Pacífico norte'], ['sur', 'Pacífico central y sur'], ['valle', 'Valle Central'], ['mar', 'En el mar']] },
+      ops: [['caribe', 'Caribe o Zona Norte'], ['norte', 'Guanacaste y Pacífico norte'], ['sur', 'Pacífico central y sur'], ['valle', 'Valle Central'], ['mar', 'En el mar', ['serpientes', 'tortugas', 'cocodrilos']]] },
     { id: 'alt', texto: '¿A qué altura, más o menos?', valor: e => e.q.alt || null,
       ops: [['baja', 'Menos de 500 m (tierras bajas y costas)'], ['media', 'De 500 a 1500 m'], ['alta', 'Más de 1500 m (montaña)']] },
   ];
   const pasos = {};   // respuestas: { pregunta: opción } («nose» = no sé)
+  // Preguntas y opciones que corresponden al tipo de animal respondido (sin tipo: las comunes a todos)
+  const vale = pr => !pr.solo || pasos.tipo === pr.solo;
+  const opsDe = pr => pr.ops.filter(o => !o[2] || o[2].includes(pasos.tipo) || !pasos.tipo || pasos.tipo === 'nose');
 
   // true = coincide, false = se descarta, null = sin dato (sigue en la lista)
   function coincide(e, pr, v) {
@@ -1422,9 +1517,11 @@
   // La siguiente pregunta es la que más reduce la lista en el peor caso
   function siguientePregunta(lista) {
     let mejor = null, peor = Infinity;
+    const tipo = PREGUNTAS[0];
+    if (!pasos.tipo && new Set(lista.map(secDe)).size > 1) return tipo;   // primero, qué animal es
     for (const pr of PREGUNTAS) {
-      if (pasos[pr.id]) continue;
-      const cuentas = pr.ops.map(([v]) => lista.filter(e => coincide(e, pr, v) !== false).length);
+      if (pasos[pr.id] || !vale(pr)) continue;
+      const cuentas = opsDe(pr).map(([v]) => lista.filter(e => coincide(e, pr, v) !== false).length);
       const max = Math.max(...cuentas);
       if (max < lista.length && max < peor) { peor = max; mejor = pr; }
     }
@@ -1433,7 +1530,7 @@
 
   function sinDatos(e) {
     return PREGUNTAS.filter(pr => pasos[pr.id] && pasos[pr.id] !== 'nose' && coincide(e, pr, pasos[pr.id]) === null)
-      .map(pr => ({ pu: 'pupila', es: 'escamas', tam: 'tamaño', reg: 'región', alt: 'altura' }[pr.id] || pr.id));
+      .map(pr => ({ pu: 'pupila', es: 'escamas', tam: 'tamaño', reg: 'región', alt: 'altura', lug: 'lugar', pat: 'dibujo', col: 'color' }[pr.id] || pr.id));
   }
 
   function vistaPasos() {
@@ -1445,7 +1542,7 @@
     $vista.innerHTML = `
       ${pr ? `<section class="pregunta">
         <h2>${esc(pr.texto)}</h2>${pr.ayuda ? `<p class="ayuda">${esc(pr.ayuda)}</p>` : ''}
-        <div class="opciones">${pr.ops.map(([v, t]) => {
+        <div class="opciones">${opsDe(pr).map(([v, t]) => {
           const n = lista.filter(e => coincide(e, pr, v) !== false).length;
           return `<button class="opcion" data-v="${v}"${n ? '' : ' disabled'}><strong>${esc(t)}</strong><span>${n} ${n === 1 ? 'especie' : 'especies'}</span></button>`;
         }).join('')}
@@ -1459,7 +1556,7 @@
             return filaEspecie(e, true, sd.length ? `<span class="sin-dato">Sin dato de ${sd.join(', ')}</span>` : '');
           }).join('')}</ul>`
         : `<div class="botones centrar"><button class="btn sec" id="btn-ver">Ver las ${lista.length} posibles</button></div>`}
-      <p class="fuente">Rasgos tomados de las fichas (Solórzano, <i>Serpientes de Costa Rica</i>, 2022). Si una especie no tiene un dato, sigue en la lista. Observe siempre de lejos y no toque ninguna serpiente.</p>`;
+      <p class="fuente">Rasgos tomados de las fichas (Solórzano, <i>Serpientes de Costa Rica</i>, 2022, y Muñoz Chacón y Johnston, <i>Anfibios y reptiles de Costa Rica</i>, 2013); en las especies que no son serpientes, la región y la altura salen de los registros de GBIF. Si una especie no tiene un dato, sigue en la lista. Observe siempre de lejos y no toque ninguna serpiente.</p>`;
     $vista.querySelectorAll('.opcion').forEach(b => { b.onclick = () => { pasos[pr.id] = b.dataset.v; ver.pasos = false; render(); window.scrollTo(0, 0); }; });
     $vista.querySelectorAll('[data-quitar]').forEach(b => { b.onclick = () => { delete pasos[b.dataset.quitar]; render(); }; });
     const $r = document.getElementById('btn-reiniciar');
@@ -1534,7 +1631,7 @@
     cabecera('Por foto', 'Compara tu foto con las de la guía');
     const orden = porFoto.orden.filter(o => !usar || usar.has(o.id)).slice(0, 20);
     $vista.innerHTML = `
-      ${porFoto.url ? `<div class="ficha-foto mi-foto"><img src="${porFoto.url}" alt="Tu foto"></div>` : `<p class="nota">Toma o elige una foto de la serpiente (de lejos). La app la compara con las fotos de la guía y te muestra primero las especies de colores más parecidos; después tú comparas las fotos.</p>`}
+      ${porFoto.url ? `<div class="ficha-foto mi-foto"><img src="${porFoto.url}" alt="Tu foto"></div>` : `<p class="nota">Toma o elige una foto del animal (de lejos). La app la compara con las fotos de la guía y te muestra primero las especies de colores más parecidos; después tú comparas las fotos.</p>`}
       <div class="botones">
         <button class="btn" id="btn-camara">${ICONO.camara.replace('icono-camara', '')}Tomar foto</button>
         <button class="btn sec" id="btn-galeria">${ICONO.galeria}Elegir de galería</button>
@@ -1558,7 +1655,7 @@
 
   function vistaContacto() {
     cabecera('Contacto', 'Sugerencias e ideas');
-    const asunto = encodeURIComponent('Sugerencia para la Guía de serpientes de Costa Rica');
+    const asunto = encodeURIComponent('Sugerencia para la Guía de anfibios y reptiles de Costa Rica');
     $vista.innerHTML = `
       <div class="contacto">
         <p class="nota">¿Tienes sugerencias para mejorar esta guía, encontraste un error o tienes una idea para una nueva aplicación? Escríbeme.</p>
@@ -1600,7 +1697,7 @@
     }
     // formato 2: agrega el progreso de Aprender; los respaldos de formato 1 (solo fotos) se siguen pudiendo restaurar
     const contenido = JSON.stringify({ app: 'guia-serpientes-cr', formato: 2, fotos, progreso });
-    const nombre = `respaldo-mis-fotos-serpientes-${new Date().toISOString().slice(0, 10)}.json`;
+    const nombre = `respaldo-guia-anfibios-reptiles-${new Date().toISOString().slice(0, 10)}.json`;
     const detalle = `${todas.length} fotos y el progreso de ${nProg} especies`;
     if (window.AndroidApp) {  // dentro del APK: se guarda en Descargas
       const r = window.AndroidApp.guardarRespaldo(contenido, nombre);

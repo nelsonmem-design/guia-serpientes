@@ -366,3 +366,7 @@ main { max-width: 760px; margin: 0 auto; padding: 12px 16px 40px; }
 .comparar-foto .tira { display: flex; gap: 6px; overflow-x: auto; margin: 6px -16px 12px; padding: 0 16px; scroll-snap-type: x mandatory; }
 .comparar-foto .tira img { flex: none; width: 78%; max-height: 40vh; object-fit: cover; border-radius: 10px; scroll-snap-align: center; }
 .enlace { border: 0; background: none; padding: 0; color: var(--verde-claro); font: inherit; text-decoration: underline; cursor: pointer; }
+
+/* Inicio por clases (Reptiles, Anfibios): clase que todavía no tiene especies, y subtítulos de sección en Aprender */
+.clase-pendiente { margin: 0; padding: 12px 14px; border: 1px dashed var(--linea); border-radius: 12px; color: var(--suave); font-size: 14px; }
+.sub-seccion { margin: 14px 0 6px; font-size: 15px; }
