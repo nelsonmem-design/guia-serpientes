@@ -54,6 +54,7 @@
   const ENWEB = !window.AndroidApp && window.isSecureContext && 'serviceWorker' in navigator
     && location.hostname !== 'appassets.androidplatform.net';
   let pedirInstalacion = null;   // evento del navegador para ofrecer «Instalar»
+  const INSTALADA = matchMedia('(display-mode: standalone)').matches;   // abierta como programa instalado
   let registroSW = null;
   if (ENWEB) {
     const habiaVersion = !!navigator.serviceWorker.controller;
@@ -570,7 +571,16 @@
             <li><button class="fila" data-ir="#/respaldo">${ICONO.respaldo}<span class="fila-texto"><strong>Respaldo de mis fotos y progreso</strong><span>Guardar o recuperar tus fotos y tu avance</span></span></button></li>
             <li><button class="fila" data-ir="#/creditos">${ICONO.libro}<span class="fila-texto"><strong>Créditos de fotos</strong><span>Autores y licencias</span></span></button></li>
             <li><button class="fila" data-ir="#/contacto">${ICONO.correo}<span class="fila-texto"><strong>Contacto</strong><span>Sugerencias para la guía o ideas de aplicaciones</span></span></button></li>
-            ${pedirInstalacion ? `<li><button class="fila" id="btn-instalar">${ICONO.instalar}<span class="fila-texto"><strong>Instalar en esta computadora</strong><span>Como programa, con su ícono; funciona sin internet y se actualiza sola</span></span></button></li>` : ''}
+            ${ENWEB && !INSTALADA ? `<li><button class="fila" id="btn-instalar">${ICONO.instalar}<span class="fila-texto"><strong>Instalar en esta computadora</strong><span>Como programa, con su ícono; funciona sin internet y se actualiza sola</span></span></button>
+              <div class="pasos-instalar" id="pasos-instalar" hidden>
+                <p>Si no aparece la ventana para instalar, hágalo desde el navegador:</p>
+                <ul>
+                  <li><strong>Chrome:</strong> ícono de instalar (pantalla con flecha) al final de la barra de direcciones, o menú ⋮ → Transmitir, guardar y compartir → Instalar página como aplicación.</li>
+                  <li><strong>Edge:</strong> menú ⋯ → Aplicaciones → Instalar este sitio como una aplicación.</li>
+                  <li>Firefox y Safari en Windows no permiten instalarla: use Chrome o Edge.</li>
+                </ul>
+                <p>Si la guía ya está instalada, ábrala desde el menú Inicio o el escritorio.</p>
+              </div></li>` : ''}
           </ul>
           <button class="fab" data-pasos="" aria-label="¿Qué animal vi? Identificar paso a paso">${ICONO.pasos}</button>`;
       } else {
@@ -597,6 +607,11 @@
       pintarVersion();
       const $instalar = document.getElementById('btn-instalar');
       if ($instalar) $instalar.onclick = async () => {
+        if (!pedirInstalacion) {   // el navegador no ofreció instalar (aún no, ya instalada o no lo permite)
+          const $p = document.getElementById('pasos-instalar');
+          $p.hidden = !$p.hidden;
+          return;
+        }
         pedirInstalacion.prompt();
         if ((await pedirInstalacion.userChoice).outcome === 'accepted') pedirInstalacion = null;
       };
