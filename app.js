@@ -37,7 +37,10 @@
     visto: '<svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>',
     comparar: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="7" height="14" rx="1.5"/><rect x="14" y="5" width="7" height="14" rx="1.5"/></svg>',
     correo: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>',
+    pasos: '<svg viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></svg>',
     alerta: '<svg viewBox="0 0 24 24"><path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18v.5"/></svg>',
+    tema: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/></svg>',
+    actualizar: '<svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 0 1-14.3 4.9M4 12a8 8 0 0 1 14.3-4.9"/><path d="M18.5 3v4.2h-4.2M5.5 21v-4.2h4.2"/></svg>',
     instalar: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M8 20h8M12 16v4M12 7v6M9.5 10.5L12 13l2.5-2.5"/></svg>',
   };
 
@@ -71,16 +74,93 @@
     } catch (_) { /* sin almacenamiento */ }
   }
 
-  // «Buscar actualización» en la versión de escritorio: pide al navegador revisar sw.js en ese momento
-  async function buscarActualizacionWeb() {
-    if (!registroSW) { aviso('No se pudo revisar: se necesita conexión a internet.'); return; }
-    aviso('Buscando actualización…');
-    try {
-      await registroSW.update();
-      if (!registroSW.installing && !registroSW.waiting) aviso(`Ya tienes la versión más reciente (${G.version}).`);
-      else aviso('Descargando la versión nueva; la guía se recargará sola.');
-    } catch (_) { aviso('No se pudo revisar: se necesita conexión a internet.'); }
+  /* ---------- Fila «Versión» del inicio: versión instalada, «Buscar actualización» y «Actualizar a la x.y» ----------
+     En el APK revisa Actualizador.java (version.json del último Release de GitHub) y avisa cada cambio con
+     window.estadoActualizacion. En la computadora se lee version-web.json (lo genera construir_app.py; el service
+     worker no lo guarda) y, si es más nueva, el service worker baja la versión y la página se recarga sola. */
+  const PUEDE_ACTUALIZAR = !!(window.AndroidApp && window.AndroidApp.buscarActualizacion) || ENWEB;
+  const act = { estado: 'inicial', nueva: '' };   // inicial, buscando, al-dia, nueva, sin-red o descargando
+  const ESTADO_TEXTO = {
+    inicial: 'Revisa si hay una versión nueva', buscando: 'Buscando actualización…', 'al-dia': 'Es la versión más reciente',
+    nueva: 'Hay una versión nueva', 'sin-red': 'No se pudo revisar: se necesita internet', descargando: 'Descargando la versión nueva…',
+  };
+  function masNueva(a, b) {
+    const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number);
+    for (let k = 0; k < Math.max(x.length, y.length); k++) if ((x[k] || 0) !== (y[k] || 0)) return (x[k] || 0) > (y[k] || 0);
+    return false;
   }
+  function versionInstalada() {
+    try { return (window.AndroidApp && window.AndroidApp.versionInstalada && window.AndroidApp.versionInstalada()) || G.version; } catch (_) { return G.version; }
+  }
+  window.estadoActualizacion = (estado, nueva) => {
+    act.estado = ESTADO_TEXTO[estado] ? estado : 'inicial';
+    act.nueva = nueva || '';
+    pintarVersion();
+  };
+  async function revisarWeb(manual) {
+    if (manual) estadoActualizacion('buscando');
+    try {
+      const r = await fetch(`version-web.json?t=${Date.now()}`, { cache: 'no-store' });
+      const v = (await r.json()).version;
+      if (!masNueva(v, G.version)) { estadoActualizacion('al-dia'); return; }
+      estadoActualizacion('nueva', v);
+      if (registroSW) registroSW.update().catch(() => {});   // empieza a bajarla
+    } catch (_) { if (manual) estadoActualizacion('sin-red'); }
+  }
+  function filaVersion() {
+    if (!PUEDE_ACTUALIZAR) return `<li><div class="fila version">${ICONO.actualizar}<span class="fila-texto"><strong>Versión ${esc(versionInstalada())}</strong><span>Datos del ${esc(G.fecha.split('-').reverse().join('/'))}</span></span></div></li>`;
+    return `<li><button class="fila version" id="fila-version">${ICONO.actualizar}<span class="fila-texto" id="version-texto"></span><span class="version-accion" id="version-accion"></span></button></li>`;
+  }
+  function pintarVersion() {
+    const $t = document.getElementById('version-texto'), $a = document.getElementById('version-accion');
+    if (!$t) return;
+    $t.innerHTML = `<strong>Versión ${esc(versionInstalada())}</strong><span>${esc(ESTADO_TEXTO[act.estado])}</span>`;
+    const ocupado = act.estado === 'buscando' || act.estado === 'descargando';
+    $a.textContent = act.estado === 'nueva' ? `Actualizar a la ${act.nueva}` : ocupado ? '' : 'Buscar actualización';
+    $a.classList.toggle('nueva', act.estado === 'nueva');
+    $a.hidden = ocupado;
+  }
+  function tocarVersion() {
+    if (act.estado === 'buscando' || act.estado === 'descargando') return;
+    if (window.AndroidApp) {
+      if (act.estado === 'nueva') window.AndroidApp.actualizar();
+      else window.AndroidApp.buscarActualizacion();
+    } else if (act.estado === 'nueva') {
+      const v = act.nueva;
+      estadoActualizacion('descargando', v);
+      if (!registroSW) { location.reload(); return; }
+      // Si el service worker encuentra la versión, la baja y la página se recarga sola (controllerchange)
+      registroSW.update().then(() => {
+        if (registroSW.installing || registroSW.waiting) return;
+        estadoActualizacion('nueva', v);
+        aviso('La versión nueva todavía se está publicando. Intenta de nuevo en unos minutos.');
+      }).catch(() => { estadoActualizacion('nueva', v); aviso('No se pudo descargar: se necesita internet.'); });
+    } else revisarWeb(true);
+  }
+  /* ---------- Apariencia: tema «Clásica» o «Técnica» (tema-tecnico.css), guardado en este equipo ---------- */
+  const CLAVE_TEMA = 'guia-serpientes-tema';
+  const COLOR_BARRA = { clasico: '#1f4d3a', tecnico: '#0f5c50' };
+  const temaActual = () => document.documentElement.dataset.tema === 'tecnico' ? 'tecnico' : 'clasico';
+  function ponerTema(tema) {
+    if (tema === 'tecnico') document.documentElement.dataset.tema = 'tecnico';
+    else delete document.documentElement.dataset.tema;
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.content = COLOR_BARRA[temaActual()];
+    try { localStorage.setItem(CLAVE_TEMA, temaActual()); } catch (_) { /* sin almacenamiento: dura hasta cerrar */ }
+  }
+  ponerTema(temaActual());
+  function filaTema() {
+    const t = temaActual();
+    return `<li><div class="fila tema-fila">${ICONO.tema}<span class="fila-texto"><strong>Apariencia</strong>
+      <span class="tema-opciones" role="group" aria-label="Apariencia">
+        <button data-tema="clasico" aria-pressed="${t === 'clasico'}">Clásica</button>
+        <button data-tema="tecnico" aria-pressed="${t === 'tecnico'}">Técnica</button></span></span></div></li>`;
+  }
+
+  // Al abrir: en el APK se lee el resultado de la revisión que hace Android; en la computadora se revisa en silencio
+  if (window.AndroidApp && window.AndroidApp.estadoActualizacion) {
+    try { const [e, v] = window.AndroidApp.estadoActualizacion().split('|'); act.estado = ESTADO_TEXTO[e] ? e : 'inicial'; act.nueva = v || ''; } catch (_) { /* APK viejo */ }
+  } else if (ENWEB) setTimeout(() => revisarWeb(false), 1500);
 
   // Sección Contacto (al final del menú): nombre del autor y correo para sugerencias
   const CONTACTO = { nombre: 'MSc. Ing. Nelson Espinoza Mora', correo: 'nelsonmem@gmail.com' };
@@ -90,7 +170,9 @@
   const normal = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   // Las especies sin foto libre muestran un dibujo neutro (no se usa la foto de otra especie)
   const SIN_FOTO = 'sin-foto.svg';
-  const foto = id => especies.get(id)?.f === 0 ? SIN_FOTO : `fotos/${id}.webp`;
+  // Galería de la guía: la foto 1 es fotos/<id>.webp y las demás fotos/<id>-<n>.webp (e.nf fotos en total)
+  const foto = (id, n = 1) => especies.get(id)?.f === 0 ? SIN_FOTO : n > 1 ? `fotos/${id}-${n}.webp` : `fotos/${id}.webp`;
+  const fotosGuia = e => e.f === 0 ? [SIN_FOTO] : Array.from({ length: e.nf || 1 }, (_, k) => foto(e.id, k + 1));
   const mini = id => especies.get(id)?.f === 0 ? SIN_FOTO : `fotos/min/${id}.webp`;
   // Nombre principal: el común en español; si la especie no tiene, el científico
   const nom = e => e.es || e.sci;
@@ -303,6 +385,7 @@
     if (p[1] === 'especie' && especies.has(p[2])) return `#/grupo/${especies.get(p[2]).g}`;
     if (p[1] === 'grupo' && grupos.get(p[2])?.cat) return `#/cat/${grupos.get(p[2]).cat}`;
     if (p[1] === 'comparar') return '#/aprender';
+    if (p[1] === 'identificar' && p[3]) return '#/identificar/foto';
     if (p[1] === 'aprender' && p[2] === 'grupo' && grupos.get(p[3])?.cat) return `#/aprender/cat/${grupos.get(p[3]).cat}`;
     if (p[1] === 'aprender' && p[2]) return '#/aprender';
     if (p[1] === 'practica' && p[3]?.startsWith('g-')) return `#/aprender/grupo/${p[3].slice(2)}`;
@@ -372,6 +455,8 @@
     else if (p[1] === 'respaldo') vistaRespaldo();
     else if (p[1] === 'contacto') vistaContacto();
     else if (p[1] === 'mordedura') vistaMordedura();
+    else if (p[1] === 'identificar' && p[2] === 'pasos') vistaPasos();
+    else if (p[1] === 'identificar' && p[2] === 'foto') { lista = !p[3]; vistaPorFoto(p[3]); }
     else vistaInicio('');
     if (lista) window.scrollTo(0, scrolls['#' + ruta] || 0);
   }
@@ -390,14 +475,14 @@
     return p ? `<span class="marca ${p[0]}">${p[1]}</span>` : '';
   }
 
-  function filaEspecie(e, conGrupo = false) {
+  function filaEspecie(e, conGrupo = false, extra = '') {
     const propia = misFotos.get(e.id);
     const m = marcas(e);
     return `<li><button class="fila${e.p === 'v' ? ' venenosa' : ''}" data-ir="#/especie/${e.id}">
       <img src="${propia || mini(e.id)}" alt="" loading="lazy">
       <span class="fila-texto"><strong>${esc(nom(e))}</strong><span class=\"es\">${sci(e)}</span>
         ${conGrupo ? `<span>${esc(grupos.get(e.g).nombre)}</span>` : ''}
-        ${m ? `<span class="marcas">${m}</span>` : ''}</span>
+        ${m ? `<span class="marcas">${m}</span>` : ''}${extra}</span>
       ${propia ? ICONO.camara : ''}
     </button></li>`;
   }
@@ -446,21 +531,29 @@
       const q = normal($q.value.trim());
       if (!q) {
         const nPend = G.especies.filter(e => pendiente(e.id)).length;
-        $res.innerHTML = `<button class="aprender-inicio" data-ir="#/aprender">${ICONO.aprender}
-            <span class="fila-texto"><strong>Aprender</strong><span>${nPend ? `${nPend} especies para repasar hoy` : 'Practica con fotos y repasa cada día'}</span></span>${ICONO.der}</button>
-          <button class="mordedura-inicio" data-ir="#/mordedura">${ICONO.alerta}
-            <span class="fila-texto"><strong>Ante una mordedura</strong><span>Qué hacer y qué no hacer</span></span>${ICONO.der}</button>
+        $res.innerHTML = `<h2 class="seccion">¿Qué serpiente vi?</h2>
+          <div class="identificar-inicio">
+            <button class="btn" data-ir="#/identificar/pasos">${ICONO.pasos}Paso a paso</button>
+            <button class="btn sec" data-ir="#/identificar/foto">${ICONO.camara.replace('icono-camara', '')}Por foto</button>
+          </div>
           <h2 class="seccion">¿Qué tipo de serpiente es?</h2><div class="categorias">${G.categorias.map(c => `
           <button class="categoria" data-ir="#/cat/${c.id}">
             <img src="${mini(c.foto)}" alt="" loading="lazy">
             <span class="cat-texto"><strong>${esc(c.nombre)}</strong><span>${c.n} especies</span></span>
           </button>`).join('')}</div>
+          <button class="aprender-inicio" data-ir="#/aprender">${ICONO.aprender}
+            <span class="fila-texto"><strong>Aprender</strong><span>${nPend ? `${nPend} especies para repasar hoy` : 'Practica con fotos y repasa cada día'}</span></span>${ICONO.der}</button>
+          <button class="mordedura-inicio" data-ir="#/mordedura">${ICONO.alerta}
+            <span class="fila-texto"><strong>Ante una mordedura</strong><span>Qué hacer y qué no hacer</span></span>${ICONO.der}</button>
           <ul class="lista menu-final">
+            ${filaVersion()}
+            ${filaTema()}
             <li><button class="fila" data-ir="#/respaldo">${ICONO.respaldo}<span class="fila-texto"><strong>Respaldo de mis fotos y progreso</strong><span>Guardar o recuperar tus fotos y tu avance</span></span></button></li>
             <li><button class="fila" data-ir="#/creditos">${ICONO.libro}<span class="fila-texto"><strong>Créditos de fotos</strong><span>Autores y licencias</span></span></button></li>
             <li><button class="fila" data-ir="#/contacto">${ICONO.correo}<span class="fila-texto"><strong>Contacto</strong><span>Sugerencias para la guía o ideas de aplicaciones</span></span></button></li>
             ${pedirInstalacion ? `<li><button class="fila" id="btn-instalar">${ICONO.instalar}<span class="fila-texto"><strong>Instalar en esta computadora</strong><span>Como programa, con su ícono; funciona sin internet y se actualiza sola</span></span></button></li>` : ''}
-          </ul>`;
+          </ul>
+          <button class="fab" data-ir="#/identificar/pasos" aria-label="¿Qué serpiente vi? Identificar paso a paso">${ICONO.pasos}</button>`;
       } else {
         const porNombre = [], porRasgo = [];
         for (const e of G.especies) {
@@ -473,6 +566,15 @@
             (porRasgo.length ? `<h2 class="seccion">En las características (${porRasgo.length})</h2><ul class="lista">${porRasgo.map(e => filaEspecie(e, true)).join('')}</ul>` : '');
       }
       activarEnlaces($res);
+      $res.querySelectorAll('.tema-opciones button').forEach(b => {
+        b.onclick = () => {
+          ponerTema(b.dataset.tema);
+          $res.querySelectorAll('.tema-opciones button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+        };
+      });
+      const $version = document.getElementById('fila-version');
+      if ($version) $version.onclick = tocarVersion;
+      pintarVersion();
       const $instalar = document.getElementById('btn-instalar');
       if ($instalar) $instalar.onclick = async () => {
         pedirInstalacion.prompt();
@@ -784,7 +886,7 @@
     cabecera(nom(e), g.nombre);
     const propias = ordenar(await BD.deEspecie(e.id));
     if (location.hash.split('/')[2] !== encodeURIComponent(e.id) && location.hash.split('/')[2] !== e.id) return;
-    const fotos = propias.length ? propias.map(r => urlBlob(r.foto)) : [foto(e.id)];
+    const fotos = propias.length ? propias.map(r => urlBlob(r.foto)) : fotosGuia(e);
     let n = Math.min(fotoVisor ?? 0, fotos.length - 1);
 
     const idx = g.especies.indexOf(e.id);
@@ -1143,7 +1245,7 @@
 
     $vista.innerHTML = `
       <div class="avance-ronda"><span>Pregunta ${r.i + 1} de ${r.cola.length}</span><span>${r.aciertos} ${r.aciertos === 1 ? 'acierto' : 'aciertos'}</span></div>
-      <div class="ficha-foto"><img src="${foto(id)}" alt="Foto del ave que hay que reconocer"></div>
+      <div class="ficha-foto"><img src="${q.foto || (q.foto = foto(id, 1 + Math.floor(Math.random() * (e.nf || 1))))}" alt="Foto de la serpiente que hay que reconocer"></div>
       <div class="opciones">${q.ops.map((o, k) => `<button class="opcion" data-k="${k}">${etiqueta(o)}</button>`).join('')}</div>
       <div id="respuesta"></div>`;
 
@@ -1244,7 +1346,7 @@
     cabecera('Créditos de fotos', 'Autores y licencias');
     $vista.innerHTML = `
       <div class="creditos">
-        <p class="nota">Las fotos de esta guía provienen de Wikimedia Commons y se usan según la licencia que indica su autor.
+        <p class="nota">Las fotos de esta guía provienen de Wikimedia Commons y de iNaturalist, solo con licencias libres (CC0, dominio público, CC BY y CC BY-SA), y se usan según la licencia que indica su autor. Los números indican el orden de las fotos en la ficha.
         Los textos son de redacción propia, a partir de Alejandro Solórzano, <i>Serpientes de Costa Rica: distribución, taxonomía e
         historia natural</i>, 2.ª edición, Editorial Costa Rica, 2022 (con Mahmood Sasa Marín y José María Gutiérrez como autores invitados).
         La lista de especies y los nombres científicos se revisaron con The Reptile Database (Uetz y colaboradores, reptile-database.org).
@@ -1252,14 +1354,11 @@
         «Registros GBIF» muestra dónde hay registros con coordenadas publicados en GBIF.org (colecciones de museos, iNaturalist y otras fuentes).
         Contornos de Natural Earth y relieve de Mapzen/Tilezen (datos abiertos).
         Versión de los datos: ${esc(G.version)} (${esc(G.fecha)}).</p>
-        ${(window.AndroidApp && window.AndroidApp.buscarActualizacion) || ENWEB ? '<div class="botones"><button class="btn sec" id="btn-actualizar">Buscar actualización</button></div>' : ''}
         ${gruposAlfa.map(g => `<h3>${esc(g.nombre)}</h3>${g.especies.map(id => {
           const e = especies.get(id);
-          return `<p><b>${esc(nom(e))}</b> (${sci(e)}): ${e.cr ? `${esc(e.cr[0])}${e.cr[1] ? ` <span class="lic">· ${esc(e.cr[1])}</span>` : ''}` : 'sin foto libre'}</p>`;
+          return `<p><b>${esc(nom(e))}</b> (${sci(e)}): ${e.cr ? e.cr.map((c, k) => `${e.cr.length > 1 ? `${k + 1}) ` : ''}${esc(c[0])}${c[1] ? ` <span class="lic">· ${esc(c[1])}</span>` : ''}`).join('; ') : 'sin foto libre'}</p>`;
         }).join('')}`).join('')}
       </div>`;
-    const btn = document.getElementById('btn-actualizar');
-    if (btn) btn.onclick = () => (window.AndroidApp ? window.AndroidApp.buscarActualizacion() : buscarActualizacionWeb());
   }
 
   // Primeros auxilios ante una mordedura: redacción propia a partir del capítulo de envenenamientos del libro
@@ -1279,6 +1378,182 @@
         <p class="fuente">${G.mordedura.fuente}</p>
         <div class="botones"><a class="btn peligro-btn" href="tel:911">${ICONO.alerta}Llamar al 911</a></div>
       </div>`;
+  }
+
+  /* ---------- Identificar: paso a paso y por foto ----------
+     Rasgos de cada especie en e.q (construir_app.py): lug, pat, col (rasgos_identificacion.json), pu y es (del libro,
+     rasgos_libro.json), tam (cm, de la ficha), reg y alt (del mapa «Libro»). Lo que falta es «sin dato»: la especie no
+     se descarta por esa pregunta. */
+  const PREGUNTAS = [
+    { id: 'lug', texto: '¿Dónde estaba?', valor: e => e.q.lug,
+      ops: [['a', 'En un árbol o arbusto'], ['s', 'En el suelo'], ['h', 'Bajo la hojarasca, piedras o la tierra'], ['w', 'En el agua o en el mar']] },
+    { id: 'pat', texto: '¿Qué dibujo tiene el cuerpo?', valor: e => e.q.pat,
+      ops: [['A', 'Anillos o bandas de colores alrededor del cuerpo'], ['M', 'Manchas, rombos o bandas oscuras'], ['R', 'Rayas a lo largo del cuerpo'], ['P', 'Puntitos o salpicado'], ['U', 'De un solo color, o casi']] },
+    { id: 'col', texto: '¿Qué color tiene sobre todo?', valor: e => e.q.col,
+      ops: [['v', 'Verde'], ['c', 'Café, gris o pardo'], ['n', 'Negra o muy oscura'], ['r', 'Roja, anaranjada o rosada'], ['a', 'Amarilla']] },
+    { id: 'fos', texto: '¿Tiene la cabeza ancha y triangular, con un hoyito (foseta) entre el ojo y la nariz?',
+      ayuda: 'Es la marca de las víboras. Mírela solo de lejos o en una foto.', valor: e => [e.k === 'viboras' ? 'si' : 'no'],
+      ops: [['si', 'Sí'], ['no', 'No']] },
+    { id: 'pu', texto: '¿Cómo es la pupila del ojo?', valor: e => e.q.pu ? [e.q.pu] : null,
+      ops: [['vertical', 'Vertical, como la de un gato'], ['redonda', 'Redonda'], ['oculta', 'No se le ven los ojos (son diminutos)']] },
+    { id: 'es', texto: '¿Las escamas del lomo son ásperas, con una crestita (quilla) en el centro?', valor: e => e.q.es ? (e.q.es === 'ambas' ? ['quilla', 'lisas'] : [e.q.es]) : null,
+      ops: [['quilla', 'Sí, ásperas, con quilla'], ['lisas', 'No, lisas y brillantes']] },
+    { id: 'tam', texto: '¿Qué tan larga era, más o menos?', ayuda: 'Una serpiente pequeña puede ser una cría de una especie grande.',
+      coincide: (e, v) => e.q.tam == null ? null : v === 'p' ? true : v === 'm' ? e.q.tam >= 50 : e.q.tam >= 120,
+      ops: [['p', 'Menos de 50 cm'], ['m', 'De 50 cm a 1,20 m'], ['g', 'Más de 1,20 m']] },
+    { id: 'reg', texto: '¿En qué parte del país la vio?', valor: e => e.q.reg || null,
+      ops: [['caribe', 'Caribe o Zona Norte'], ['norte', 'Guanacaste y Pacífico norte'], ['sur', 'Pacífico central y sur'], ['valle', 'Valle Central'], ['mar', 'En el mar']] },
+    { id: 'alt', texto: '¿A qué altura, más o menos?', valor: e => e.q.alt || null,
+      ops: [['baja', 'Menos de 500 m (tierras bajas y costas)'], ['media', 'De 500 a 1500 m'], ['alta', 'Más de 1500 m (montaña)']] },
+  ];
+  const pasos = {};   // respuestas: { pregunta: opción } («nose» = no sé)
+
+  // true = coincide, false = se descarta, null = sin dato (sigue en la lista)
+  function coincide(e, pr, v) {
+    if (pr.coincide) return pr.coincide(e, v);
+    const vals = pr.valor(e);
+    return !vals || !vals.length ? null : vals.includes(v);
+  }
+
+  function posibles(resp = pasos) {
+    return G.especies.filter(e => PREGUNTAS.every(pr => !resp[pr.id] || resp[pr.id] === 'nose' || coincide(e, pr, resp[pr.id]) !== false));
+  }
+
+  // La siguiente pregunta es la que más reduce la lista en el peor caso
+  function siguientePregunta(lista) {
+    let mejor = null, peor = Infinity;
+    for (const pr of PREGUNTAS) {
+      if (pasos[pr.id]) continue;
+      const cuentas = pr.ops.map(([v]) => lista.filter(e => coincide(e, pr, v) !== false).length);
+      const max = Math.max(...cuentas);
+      if (max < lista.length && max < peor) { peor = max; mejor = pr; }
+    }
+    return mejor;
+  }
+
+  function sinDatos(e) {
+    return PREGUNTAS.filter(pr => pasos[pr.id] && pasos[pr.id] !== 'nose' && coincide(e, pr, pasos[pr.id]) === null)
+      .map(pr => ({ pu: 'pupila', es: 'escamas', tam: 'tamaño', reg: 'región', alt: 'altura' }[pr.id] || pr.id));
+  }
+
+  function vistaPasos() {
+    const lista = posibles();
+    const pr = lista.length > 1 ? siguientePregunta(lista) : null;
+    cabecera('Paso a paso', `${lista.length} ${lista.length === 1 ? 'especie posible' : 'especies posibles'}`);
+    const dadas = PREGUNTAS.filter(p => pasos[p.id]);
+    const mostrarLista = !pr || lista.length <= 8 || ver.pasos;
+    $vista.innerHTML = `
+      ${pr ? `<section class="pregunta">
+        <h2>${esc(pr.texto)}</h2>${pr.ayuda ? `<p class="ayuda">${esc(pr.ayuda)}</p>` : ''}
+        <div class="opciones">${pr.ops.map(([v, t]) => {
+          const n = lista.filter(e => coincide(e, pr, v) !== false).length;
+          return `<button class="opcion" data-v="${v}"${n ? '' : ' disabled'}><strong>${esc(t)}</strong><span>${n} ${n === 1 ? 'especie' : 'especies'}</span></button>`;
+        }).join('')}
+          <button class="opcion nose" data-v="nose"><strong>No sé</strong></button></div>
+      </section>` : `<p class="nota">${lista.length ? 'Ya no hay más preguntas que separen estas especies. Compara sus fotos y abre las fichas.' : 'Ninguna especie coincide con todas las respuestas. Revisa alguna respuesta tocándola abajo.'}</p>`}
+      ${dadas.length ? `<div class="chips envolver respuestas">${dadas.map(p => `<button class="chip" data-quitar="${p.id}">${esc(pasos[p.id] === 'nose' ? `${p.texto.replace(/[¿?]/g, '')}: no sé` : p.ops.find(o => o[0] === pasos[p.id])[1])} ✕</button>`).join('')}
+        <button class="chip" id="btn-reiniciar">Empezar de nuevo</button></div>` : ''}
+      ${mostrarLista
+        ? `<h2 class="seccion">Especies posibles (${lista.length})</h2><ul class="lista">${lista.map(e => {
+            const sd = sinDatos(e);
+            return filaEspecie(e, true, sd.length ? `<span class="sin-dato">Sin dato de ${sd.join(', ')}</span>` : '');
+          }).join('')}</ul>`
+        : `<div class="botones centrar"><button class="btn sec" id="btn-ver">Ver las ${lista.length} posibles</button></div>`}
+      <p class="fuente">Rasgos tomados de las fichas (Solórzano, <i>Serpientes de Costa Rica</i>, 2022). Si una especie no tiene un dato, sigue en la lista. Observe siempre de lejos y no toque ninguna serpiente.</p>`;
+    $vista.querySelectorAll('.opcion').forEach(b => { b.onclick = () => { pasos[pr.id] = b.dataset.v; ver.pasos = false; render(); window.scrollTo(0, 0); }; });
+    $vista.querySelectorAll('[data-quitar]').forEach(b => { b.onclick = () => { delete pasos[b.dataset.quitar]; render(); }; });
+    const $r = document.getElementById('btn-reiniciar');
+    if ($r) $r.onclick = () => { for (const k in pasos) delete pasos[k]; render(); };
+    const $v = document.getElementById('btn-ver');
+    if ($v) $v.onclick = () => { ver.pasos = true; render(); };
+    activarEnlaces();
+  }
+  const ver = {};
+
+  // Huella de color, igual que huella() de construir_app.py: dos histogramas de 28 casillas (80 % y 40 % centrales)
+  async function huellaFoto(blob) {
+    const img = await createImageBitmap(blob, { imageOrientation: 'from-image' }).catch(() => createImageBitmap(blob));
+    const c = document.createElement('canvas');
+    c.width = c.height = 48;
+    const x = c.getContext('2d');
+    const salida = [];
+    for (const f of [0.1, 0.3]) {
+      x.drawImage(img, img.width * f, img.height * f, img.width * (1 - 2 * f), img.height * (1 - 2 * f), 0, 0, 48, 48);
+      const d = x.getImageData(0, 0, 48, 48).data;
+      const bins = new Array(28).fill(0);
+      for (let i = 0; i < d.length; i += 4) {
+        const r = d[i] / 255, g = d[i + 1] / 255, b = d[i + 2] / 255, mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+        const v = mx * 255, s = mx ? (mx - mn) / mx * 255 : 0;
+        let h = 0;
+        if (mx !== mn) h = mx === r ? ((g - b) / (mx - mn) + 6) % 6 : mx === g ? (b - r) / (mx - mn) + 2 : (r - g) / (mx - mn) + 4;
+        if (v < 40) bins[0]++;
+        else if (s < 40) bins[v < 100 ? 1 : v < 170 ? 2 : 3]++;
+        else bins[4 + Math.min(11, Math.floor(h / 6 * 12)) * 2 + (v < 150 ? 0 : 1)]++;
+      }
+      const total = bins.reduce((a, b) => a + b, 0) || 1;
+      salida.push(...bins.map(n => 255 * n / total));
+    }
+    return salida;
+  }
+
+  // Parecido de 0 a 1: el centro de la foto pesa el doble
+  const parecido = (a, b) => a.reduce((s, v, k) => s + Math.min(v, b[k]) * (k < 28 ? 1 : 2), 0) / (255 * 3);
+  const porFoto = { url: null, huella: null, orden: [] };
+
+  async function cargarFotoUsuario(archivo) {
+    if (!archivo) return;
+    aviso('Comparando con las fotos de la guía…');
+    if (porFoto.url) URL.revokeObjectURL(porFoto.url);
+    porFoto.url = URL.createObjectURL(archivo);
+    porFoto.huella = await huellaFoto(archivo);
+    porFoto.orden = G.especies.filter(e => e.hi).map(e => {
+      let mejor = 0, n = 1;
+      e.hi.forEach((h, k) => { const p = parecido(porFoto.huella, bytes64(h)); if (p > mejor) { mejor = p; n = k + 1; } });
+      return { id: e.id, p: mejor, n };
+    }).sort((a, b) => b.p - a.p);
+    render();
+  }
+
+  function vistaPorFoto(idComparar) {
+    const usar = Object.keys(pasos).length ? new Set(posibles().map(e => e.id)) : null;
+    if (idComparar && especies.has(idComparar) && porFoto.url) {
+      const e = especies.get(idComparar);
+      cabecera(nom(e), 'Comparar con tu foto');
+      $vista.innerHTML = `
+        <div class="comparar-foto">
+          <figure><img src="${porFoto.url}" alt="Tu foto"><figcaption>Tu foto</figcaption></figure>
+          <div class="tira">${fotosGuia(e).map(u => `<img src="${u}" alt="${esc(nom(e))}" loading="lazy">`).join('')}</div>
+        </div>
+        <div class="ficha-nombres"><h2>${esc(nom(e))}</h2>${e.es ? `<p>${sci(e)}</p>` : ''}<div class="marcas">${marcas(e)}</div></div>
+        <div class="rasgos">${rasgoHTML('Cómo reconocerla', e.r[1])}</div>
+        <div class="botones"><button class="btn" data-ir="#/especie/${e.id}">Ver ficha</button></div>`;
+      activarEnlaces();
+      window.scrollTo(0, 0);
+      return;
+    }
+    cabecera('Por foto', 'Compara tu foto con las de la guía');
+    const orden = porFoto.orden.filter(o => !usar || usar.has(o.id)).slice(0, 20);
+    $vista.innerHTML = `
+      ${porFoto.url ? `<div class="ficha-foto mi-foto"><img src="${porFoto.url}" alt="Tu foto"></div>` : `<p class="nota">Toma o elige una foto de la serpiente (de lejos). La app la compara con las fotos de la guía y te muestra primero las especies de colores más parecidos; después tú comparas las fotos.</p>`}
+      <div class="botones">
+        <button class="btn" id="btn-camara">${ICONO.camara.replace('icono-camara', '')}Tomar foto</button>
+        <button class="btn sec" id="btn-galeria">${ICONO.galeria}Elegir de galería</button>
+      </div>
+      ${usar ? `<p class="ayuda">Se comparan solo las ${usar.size} especies posibles según tus respuestas del paso a paso. <button class="enlace" data-ir="#/identificar/pasos">Ver respuestas</button></p>` : ''}
+      ${porFoto.url ? `<h2 class="seccion">Más parecidas por el color</h2>
+        <p class="ayuda">Es un orden aproximado por colores, no una identificación automática: toca cada especie para comparar las fotos lado a lado.</p>
+        <ul class="lista">${orden.map(o => {
+          const e = especies.get(o.id);
+          return `<li><button class="fila" data-ir="#/identificar/foto/${e.id}">
+            <img src="${foto(e.id, o.n)}" alt="" loading="lazy">
+            <span class="fila-texto"><strong>${esc(nom(e))}</strong><span class="es">${sci(e)}</span>${marcas(e) ? `<span class="marcas">${marcas(e)}</span>` : ''}</span>
+          </button></li>`;
+        }).join('')}</ul>` : ''}
+      <p class="fuente">Solo se comparan las especies que tienen fotos en la guía.</p>`;
+    const elegir = input => { input.value = ''; input.onchange = () => cargarFotoUsuario(input.files[0]); input.click(); };
+    document.getElementById('btn-camara').onclick = () => elegir(document.getElementById('in-camara'));
+    document.getElementById('btn-galeria').onclick = () => elegir(document.getElementById('in-galeria'));
+    activarEnlaces();
   }
 
   function vistaContacto() {

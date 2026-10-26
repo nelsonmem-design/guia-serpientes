@@ -1,0 +1,135 @@
+/* Tema «Técnica» (estilo de aplicación de mensajería). Se elige en el inicio, fila «Apariencia», y queda guardado
+   (app.js pone data-tema="tecnico" en <html>). Solo cambia la apariencia: listas como conversaciones (foto redonda,
+   nombre en negrita y línea gris), tarjetas como burbujas, botón flotante para identificar y datos técnicos en letra
+   monoespaciada. No usa el nombre, el logo ni los íconos de otras aplicaciones. */
+
+/* Controles comunes a los dos temas */
+.fab { display: none; }
+.fila-texto .tema-opciones { display: inline-flex; margin-top: 6px; border: 1px solid var(--linea); border-radius: 999px; overflow: hidden; }
+.tema-opciones button { border: 0; background: transparent; color: var(--suave); font-size: 13px; font-weight: 600; padding: 6px 14px; cursor: pointer; }
+.tema-opciones button[aria-pressed="true"] { background: var(--verde-claro); color: #fff; }
+.fila.tema-fila { cursor: default; }
+
+:root[data-tema="tecnico"] {
+  --verde: #0f5c50;
+  --verde-claro: #128069;
+  --fondo: #ece8e1;
+  --tarjeta: #ffffff;
+  --texto: #111b21;
+  --suave: #667781;
+  --linea: #dde2e5;
+  --gris: #e9edef;
+  --acento: #128069;
+  --mes-escasa: #bfe6d6;
+  --burbuja-propia: #d8f6d0;
+  --sombra: 0 1px .5px rgba(11, 20, 26, .13);
+  --mono: ui-monospace, "Cascadia Mono", "Roboto Mono", Consolas, "Liberation Mono", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-tema="tecnico"] {
+    --verde: #1f2c34;
+    --verde-claro: #138f71;
+    --fondo: #0b141a;
+    --tarjeta: #18242b;
+    --texto: #e9edef;
+    --suave: #8696a0;
+    --linea: #2f3f48;
+    --gris: #2a3942;
+    --gris-texto: #d1d7db;
+    --acento: #2bb594;
+    --mes-escasa: #1c4a40;
+    --burbuja-propia: #0d4a3e;
+    --sombra: none;
+  }
+}
+[data-tema="tecnico"] body {
+  background-color: var(--fondo);
+  background-image: radial-gradient(color-mix(in srgb, var(--suave) 16%, transparent) 1px, transparent 1.2px);
+  background-size: 16px 16px;
+}
+[data-tema="tecnico"] .barra { box-shadow: 0 1px 3px rgba(0, 0, 0, .2); }
+[data-tema="tecnico"] .barra p { font-family: var(--mono); font-size: 12px; letter-spacing: -.01em; }
+[data-tema="tecnico"] .logo { border-radius: 50%; }
+[data-tema="tecnico"] .buscador input { border-radius: 10px; border-color: transparent; box-shadow: var(--sombra); }
+[data-tema="tecnico"] .chip { border-color: transparent; background: color-mix(in srgb, var(--verde-claro) 14%, var(--tarjeta)); color: var(--texto); }
+[data-tema="tecnico"] .chip b { font-family: var(--mono); color: var(--verde-claro); }
+[data-tema="tecnico"] .seccion { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: .02em; color: var(--verde-claro); }
+[data-tema="tecnico"] .seccion::before { content: "// "; opacity: .6; }
+
+/* Listas e inicio como conversaciones */
+[data-tema="tecnico"] .lista, [data-tema="tecnico"] .categorias {
+  display: flex; flex-direction: column; gap: 0; margin: 0 -16px; background: var(--tarjeta); box-shadow: var(--sombra);
+}
+[data-tema="tecnico"] .lista .fila, [data-tema="tecnico"] .categoria {
+  flex-direction: row; align-items: center; gap: 14px; padding: 10px 16px; border-radius: 0;
+  background: var(--tarjeta); box-shadow: none;
+}
+[data-tema="tecnico"] .lista .fila.venenosa, [data-tema="tecnico"] .lista .fila.caribe { background: var(--tarjeta); }
+/* Línea separadora que empieza después de la foto, como en una lista de conversaciones */
+[data-tema="tecnico"] .lista > li + li > .fila, [data-tema="tecnico"] .lista > li + li > .fila-aprender,
+[data-tema="tecnico"] .categoria + .categoria {
+  box-shadow: inset 82px 1px 0 var(--tarjeta), inset 0 1px 0 var(--linea);
+}
+[data-tema="tecnico"] .fila img, [data-tema="tecnico"] .fila .sin-img, [data-tema="tecnico"] .categoria img {
+  width: 52px; height: 52px; flex: none; aspect-ratio: auto; border-radius: 50%; object-fit: cover;
+}
+[data-tema="tecnico"] .fila.par img { width: 44px; height: 44px; }
+[data-tema="tecnico"] .fila.venenosa img { box-shadow: 0 0 0 2px var(--tarjeta), 0 0 0 4px var(--rojo); }
+[data-tema="tecnico"] .cat-texto { flex: 1; min-width: 0; padding: 0; }
+[data-tema="tecnico"] .cat-texto strong, [data-tema="tecnico"] .fila-texto strong { font-size: 16px; font-weight: 600; }
+[data-tema="tecnico"] .cat-texto span, [data-tema="tecnico"] .fila-texto .es, [data-tema="tecnico"] .fila .contador {
+  font-family: var(--mono); font-size: 12.5px; color: var(--suave);
+}
+[data-tema="tecnico"] .fila .contador {
+  min-width: 24px; padding: 2px 7px; border-radius: 12px; text-align: center; background: var(--verde-claro); color: #fff;
+}
+[data-tema="tecnico"] .menu-final { margin-top: 22px; }
+[data-tema="tecnico"] .menu-final .fila { padding: 12px 16px; }
+[data-tema="tecnico"] .menu-final .fila > svg:first-child { width: 52px; }
+[data-tema="tecnico"] .version-accion { font-family: var(--mono); font-size: 12px; }
+[data-tema="tecnico"] .aprender-inicio, [data-tema="tecnico"] .mordedura-inicio { border-radius: 10px; }
+[data-tema="tecnico"] .identificar-inicio .btn { border-radius: 10px; }
+[data-tema="tecnico"] .btn.sec { background: var(--tarjeta); border-color: transparent; box-shadow: var(--sombra); }
+
+/* Tarjetas como burbujas de mensaje */
+[data-tema="tecnico"] .rasgo, [data-tema="tecnico"] .en-cr, [data-tema="tecnico"] .nota, [data-tema="tecnico"] .sobre,
+[data-tema="tecnico"] .respuesta, [data-tema="tecnico"] .practicar, [data-tema="tecnico"] .pregunta h2 {
+  position: relative; margin-left: 8px; border-radius: 0 10px 10px 10px; border-left: 0; background: var(--tarjeta); box-shadow: var(--sombra);
+}
+[data-tema="tecnico"] .rasgo::before, [data-tema="tecnico"] .en-cr::before, [data-tema="tecnico"] .nota::before,
+[data-tema="tecnico"] .sobre::before, [data-tema="tecnico"] .respuesta::before, [data-tema="tecnico"] .practicar::before,
+[data-tema="tecnico"] .pregunta h2::before {
+  content: ""; position: absolute; left: -8px; top: 0; border-style: solid; border-width: 0 8px 9px 0;
+  border-color: transparent var(--tarjeta) transparent transparent;
+}
+[data-tema="tecnico"] .rasgo h3, [data-tema="tecnico"] .en-cr h3, [data-tema="tecnico"] .sobre h3 {
+  font-family: var(--mono); font-size: 11.5px; font-weight: 600; letter-spacing: .03em; color: var(--verde-claro);
+}
+[data-tema="tecnico"] .tip { background: var(--burbuja-propia); border-radius: 8px; }
+[data-tema="tecnico"] .tip b { color: var(--texto); }
+[data-tema="tecnico"] .ficha-nombres p:not(.otros), [data-tema="tecnico"] .dato dt, [data-tema="tecnico"] .dato-pag,
+[data-tema="tecnico"] .sin-dato, [data-tema="tecnico"] .fuente, [data-tema="tecnico"] .mapa-leyenda {
+  font-family: var(--mono); font-size: 12.5px;
+}
+[data-tema="tecnico"] .dato dt { color: var(--verde-claro); font-weight: 500; }
+[data-tema="tecnico"] .marca { border-radius: 4px; font-family: var(--mono); font-size: 11.5px; font-weight: 500; }
+
+/* Paso a paso: la pregunta llega como mensaje; las respuestas dadas van como mensajes propios, a la derecha */
+[data-tema="tecnico"] .pregunta h2 { display: inline-block; max-width: calc(100% - 8px); padding: 10px 14px; font-size: 17px; }
+[data-tema="tecnico"] .pregunta .ayuda { margin-left: 8px; font-family: var(--mono); font-size: 12.5px; }
+[data-tema="tecnico"] .pregunta .opcion { border: 1px solid var(--linea); border-radius: 10px; box-shadow: var(--sombra); }
+[data-tema="tecnico"] .pregunta .opcion span { font-family: var(--mono); font-size: 12px; color: var(--verde-claro); }
+[data-tema="tecnico"] .respuestas { justify-content: flex-end; }
+[data-tema="tecnico"] .respuestas .chip { border-radius: 10px 0 10px 10px; background: var(--burbuja-propia); box-shadow: var(--sombra); }
+[data-tema="tecnico"] .opcion.bien { background: var(--burbuja-propia); }
+
+/* Botón flotante redondo del inicio: identificar paso a paso */
+[data-tema="tecnico"] .fab {
+  display: grid; place-items: center; position: fixed; z-index: 20;
+  right: max(16px, calc(50% - 364px)); bottom: calc(20px + env(safe-area-inset-bottom));
+  width: 58px; height: 58px; border: 0; border-radius: 50%; cursor: pointer;
+  background: var(--verde-claro); color: #fff; box-shadow: 0 3px 8px rgba(0, 0, 0, .3);
+}
+[data-tema="tecnico"] .fab:active { filter: brightness(.92); }
+[data-tema="tecnico"] main { padding-bottom: 96px; }
+[data-tema="tecnico"] .respuestas #btn-reiniciar { border: 1px solid var(--linea); border-radius: 999px; background: var(--tarjeta); box-shadow: none; }

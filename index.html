@@ -8,7 +8,12 @@
 <link rel="icon" href="logo.svg" type="image/svg+xml">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="iconos/icono-192.png">
-<link rel="stylesheet" href="estilos.css?v=1.0-20261025">
+<link rel="stylesheet" href="estilos.css?v=1.1-20261025">
+<link rel="stylesheet" href="tema-tecnico.css?v=1.1-20261025">
+<script>
+  // Tema elegido en «Apariencia» (app.js), puesto antes de dibujar la página para que no parpadee
+  try { if (localStorage.getItem('guia-serpientes-tema') === 'tecnico') document.documentElement.dataset.tema = 'tecnico'; } catch (e) { /* sin almacenamiento */ }
+</script>
 </head>
 <body>
 <header class="barra" id="barra">
@@ -32,8 +37,8 @@
 <input type="file" id="in-camara" accept="image/*" capture="environment" hidden>
 <input type="file" id="in-galeria" accept="image/*" multiple hidden>
 <input type="file" id="in-respaldo" accept=".json,application/json" hidden>
-<script src="datos/serpientes.js?v=1.0-20261025"></script>
-<script src="datos/mapa.js?v=1.0-20261025"></script>
-<script src="app.js?v=1.0-20261025"></script>
+<script src="datos/serpientes.js?v=1.1-20261025"></script>
+<script src="datos/mapa.js?v=1.1-20261025"></script>
+<script src="app.js?v=1.1-20261025"></script>
 </body>
 </html>

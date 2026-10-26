@@ -109,6 +109,12 @@ main { max-width: 760px; margin: 0 auto; padding: 12px 16px 40px; }
 .menu-final { margin-top: 24px; }
 .menu-final .fila { padding: 14px 16px; }
 .menu-final svg { color: var(--verde-claro); }
+.menu-final .fila > svg { flex: none; }
+.version-accion {
+  flex: none; padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 600; white-space: nowrap;
+  color: var(--verde-claro); border: 1px solid var(--linea);
+}
+.version-accion.nueva { color: #fff; background: var(--verde-claro); border-color: var(--verde-claro); }
 
 .nota { margin: 4px 0 14px; padding: 12px 14px; border-radius: 12px; background: var(--tarjeta); font-size: 15px; color: var(--suave); box-shadow: var(--sombra); }
 .sobre { margin: 4px 0 12px; padding: 12px 14px; border-radius: 12px; background: var(--tarjeta);
@@ -341,3 +347,22 @@ main { max-width: 760px; margin: 0 auto; padding: 12px 16px 40px; }
 .aviso-fuerte { margin: 0 0 8px; padding: 12px 14px; border-radius: 12px; background: var(--rojo-fondo); color: var(--rojo-texto); font-weight: 600; }
 .mordedura .fuente { margin-top: 14px; font-size: 12px; color: var(--suave); }
 .btn.peligro-btn { background: var(--rojo); text-decoration: none; }
+
+/* ---------- Identificar (paso a paso y por foto) ---------- */
+.identificar-inicio { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 6px; }
+.identificar-inicio .btn { justify-content: center; }
+.aprender-inicio { margin-top: 18px; }
+.pregunta h2 { margin: 4px 0 6px; font-size: 18px; line-height: 1.3; }
+.pregunta .opcion { display: flex; justify-content: space-between; align-items: center; gap: 8px; text-align: left; }
+.pregunta .opcion span { flex: none; font-size: 13px; color: var(--suave); }
+.pregunta .opcion:disabled { opacity: .45; }
+.pregunta .opcion.nose { background: transparent; }
+.respuestas { margin: 12px 0 4px; }
+.sin-dato { display: block; font-size: 12px; color: var(--suave); }
+.mi-foto { margin: 0 -16px 10px; }
+.comparar-foto figure { margin: 0 -16px; }
+.comparar-foto figure img { display: block; width: 100%; max-height: 42vh; object-fit: contain; background: #000; }
+.comparar-foto figcaption { padding: 4px 16px; font-size: 12px; color: var(--suave); }
+.comparar-foto .tira { display: flex; gap: 6px; overflow-x: auto; margin: 6px -16px 12px; padding: 0 16px; scroll-snap-type: x mandatory; }
+.comparar-foto .tira img { flex: none; width: 78%; max-height: 40vh; object-fit: cover; border-radius: 10px; scroll-snap-align: center; }
+.enlace { border: 0; background: none; padding: 0; color: var(--verde-claro); font: inherit; text-decoration: underline; cursor: pointer; }
